@@ -51,8 +51,7 @@ export class Activity {
   @JoinColumn({ name: 'medication_id' })
   medication?: Medication;
 
-  // Preenchido quando esta atividade foi gerada automaticamente por uma Routine —
-  // a rotina não é uma agenda paralela, só o gerador (ver entidade Routine).
+  // Preenchido quando a atividade foi gerada automaticamente por uma Routine.
   @Column({ name: 'routine_id', nullable: true })
   routineId?: string;
 

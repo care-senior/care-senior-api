@@ -11,7 +11,6 @@ import { Resident } from '../../residents/entities/resident.entity.js';
 import { StaffMember } from '../../staff/entities/staff-member.entity.js';
 import { ActivityStatus } from '../../common/enums/index.js';
 
-// Vínculo entre uma Activity e um Resident, com status individual de presença/execução.
 @Entity('activity_participants')
 @Unique(['activityId', 'residentId'])
 export class ActivityParticipant {
@@ -43,24 +42,20 @@ export class ActivityParticipant {
   })
   status!: ActivityStatus;
 
-  // Timestamp da última mudança de status (iniciar/concluir/pular).
   @Column({ name: 'status_changed_at', type: 'timestamptz', nullable: true })
   statusChangedAt?: Date;
 
-  // Motivo de ter sido pulada — visível ao responsável.
   @Column({ type: 'text', nullable: true })
   notes?: string;
 
   @Column({ name: 'registered_by_staff_id', nullable: true })
   registeredByStaffId?: string;
 
-  // NUNCA retornar este campo (nem via `registeredByStaffId`) numa resposta de API
-  // consumida por um usuário `guardian` — filtrar num DTO de saída distinto por papel.
+  // Nunca incluir num DTO de saída pra `guardian` — auditoria interna, não é dado do cuidado.
   @ManyToOne(() => StaffMember, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'registered_by_staff_id' })
   registeredBy?: StaffMember;
 
-  // Nota de 1 a 5 dada pela equipe ao concluir — visível ao responsável.
   @Column({ type: 'int', nullable: true })
   rating?: number;
 

@@ -14,8 +14,7 @@ import { Room } from '../../rooms/entities/room.entity.js';
 import { Activity } from '../../activities/entities/activity.entity.js';
 import { ActivityType, RoutineScope, Weekday } from '../../common/enums/index.js';
 
-// Sem equivalente no app mobile — só existe pro backend/web app. Gera Activity/
-// ActivityParticipant automaticamente via job agendado (cron); o mobile só vê o
+// Sem equivalente no app mobile — só existe pro backend/web app. O mobile só vê o
 // resultado (mais atividades na agenda), nunca a rotina em si.
 @Entity('routines')
 export class Routine {

@@ -26,12 +26,10 @@ export class Guardian {
   @Column()
   cpf!: string;
 
-  // Clínicas já contatadas enquanto o responsável ainda não tem nenhum idoso vinculado.
   @Column({ name: 'contacted_clinic_ids', type: 'text', array: true, default: '{}' })
   contactedClinicIds!: string[];
 
-  // guardian_resident: N:N — um responsável pode acompanhar mais de um idoso (inclusive
-  // em clínicas diferentes) e um idoso pode ter mais de um responsável.
+  // N:N real, não 1:1 — um responsável pode acompanhar idosos em clínicas diferentes.
   @ManyToMany(() => Resident, (resident) => resident.guardians)
   @JoinTable({
     name: 'guardian_resident',

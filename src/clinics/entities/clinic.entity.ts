@@ -27,8 +27,8 @@ export class Clinic {
   @Column({ name: 'operating_hours' })
   operatingHours!: string;
 
-  // Texto livre com os serviços/atividades oferecidos pela clínica — não confundir com a
-  // relação `scheduledActivities` abaixo, que aponta para a agenda (entidade Activity).
+  // Nome diferente de `scheduledActivities` de propósito: este é texto livre de
+  // serviços oferecidos, não a agenda (entidade Activity).
   @Column({ type: 'text', array: true, default: '{}' })
   activities!: string[];
 

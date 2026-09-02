@@ -9,8 +9,7 @@ import {
 import { Clinic } from '../../clinics/entities/clinic.entity.js';
 import { Resident } from '../../residents/entities/resident.entity.js';
 
-// Sem equivalente no app mobile — usado só pelo backend/web app (mapa de ocupação,
-// troca de quarto). O mobile continua enxergando `Resident.roomNumber` como texto solto.
+// Sem equivalente no app mobile, que continua só com `Resident.roomNumber` (texto solto).
 @Entity('rooms')
 export class Room {
   @PrimaryGeneratedColumn('uuid')

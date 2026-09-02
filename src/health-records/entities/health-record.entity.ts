@@ -22,12 +22,11 @@ export class HealthRecord {
   @JoinColumn({ name: 'resident_id' })
   resident!: Resident;
 
-  // Ex.: "Pressão arterial", "Glicose" — texto livre hoje, candidato a enum/lookup.
   @Column()
   type!: string;
 
-  // Ex.: "130/85 mmHg" — candidato a separar valor numérico + unidade para permitir
-  // alertas automáticos (AppNotification.healthAlert).
+  // Texto livre proposital (ex.: "130/85 mmHg") — separar valor+unidade só quando
+  // alertas automáticos de saúde precisarem comparar valores numericamente.
   @Column()
   value!: string;
 

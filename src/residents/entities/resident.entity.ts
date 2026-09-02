@@ -31,8 +31,8 @@ export class Resident {
   @Column({ name: 'health_notes', type: 'text' })
   healthNotes!: string;
 
-  // Nulo enquanto o idoso não estiver vinculado a nenhuma clínica (autocadastro do
-  // responsável, ou após desvinculação/alta) — ver `discharge` no README.
+  // Nulo antes do primeiro vínculo e depois de uma desvinculação/alta — histórico
+  // e responsáveis continuam existindo mesmo sem clínica.
   @Column({ name: 'clinic_id', nullable: true })
   clinicId?: string;
 
@@ -47,9 +47,8 @@ export class Resident {
   @JoinColumn({ name: 'room_id' })
   room?: Room;
 
-  // Campo derivado/de leitura para manter o contrato que o mobile já espera
-  // (`Resident.roomNumber` como string solta) — nunca persistido, sempre resolvido
-  // a partir de `room.number`.
+  // Getter, não coluna — mantém o contrato que o mobile já espera (`roomNumber` como
+  // string solta) sem duplicar o dado de `room.number`.
   get roomNumber(): string | undefined {
     return this.room?.number;
   }
