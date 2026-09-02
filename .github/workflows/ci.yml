@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create .env for CI
+        run: |
+          cat <<'EOF' > .env
+          DB_HOST=db
+          DB_PORT=5432
+          DB_USERNAME=care_senior
+          DB_PASSWORD=care_senior_ci
+          DB_NAME=care_senior
+          API_PORT=3000
+          EOF
+
+      - name: Build images
+        run: docker compose build
+
+      - name: Lint
+        run: docker compose run --rm api-dev npm run lint
+
+      - name: Unit tests
+        run: docker compose run --rm api-dev npm test
+
+      - name: E2E tests
+        run: docker compose run --rm api-dev npm run test:e2e
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
