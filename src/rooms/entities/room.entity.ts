@@ -6,10 +6,10 @@ import {
   OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
+import type { Relation } from 'typeorm';
 import { Clinic } from '../../clinics/entities/clinic.entity.js';
 import { Resident } from '../../residents/entities/resident.entity.js';
 
-// Sem equivalente no app mobile, que continua só com `Resident.roomNumber` (texto solto).
 @Entity('rooms')
 export class Room {
   @PrimaryGeneratedColumn('uuid')
@@ -20,7 +20,7 @@ export class Room {
 
   @ManyToOne(() => Clinic, (clinic) => clinic.rooms, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'clinic_id' })
-  clinic!: Clinic;
+  clinic!: Relation<Clinic>;
 
   @Column()
   number!: string;
@@ -35,5 +35,5 @@ export class Room {
   capacity!: number;
 
   @OneToMany(() => Resident, (resident) => resident.room)
-  residents!: Resident[];
+  residents!: Relation<Resident[]>;
 }

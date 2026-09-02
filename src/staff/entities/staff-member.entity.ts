@@ -1,10 +1,5 @@
-import {
-  Column,
-  Entity,
-  JoinColumn,
-  ManyToOne,
-  PrimaryGeneratedColumn,
-} from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import type { Relation } from 'typeorm';
 import { Clinic } from '../../clinics/entities/clinic.entity.js';
 import { StaffRole } from '../../common/enums/index.js';
 
@@ -29,13 +24,11 @@ export class StaffMember {
     onDelete: 'RESTRICT',
   })
   @JoinColumn({ name: 'clinic_id' })
-  clinic!: Clinic;
+  clinic!: Relation<Clinic>;
 
   @Column({ name: 'photo_path', nullable: true })
   photoPath?: string;
 
-  // Dado sensível — criptografar em repouso (WoobaUtilitariosCore.CriptografiaRSA
-  // equivalente) antes de persistir; nunca gravar em log.
   @Column({ nullable: true })
   cpf?: string;
 }

@@ -51,7 +51,6 @@ const ENTITIES = [
         password: config.getOrThrow<string>('DB_PASSWORD'),
         database: config.getOrThrow<string>('DB_NAME'),
         entities: ENTITIES,
-        // Schema real vem de scripts SQL versionados (agente DBA), nunca de sync automático.
         synchronize: false,
       }),
     }),

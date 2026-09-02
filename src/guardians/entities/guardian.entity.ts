@@ -1,10 +1,5 @@
-import {
-  Column,
-  Entity,
-  JoinTable,
-  ManyToMany,
-  PrimaryGeneratedColumn,
-} from 'typeorm';
+import { Column, Entity, JoinTable, ManyToMany, PrimaryGeneratedColumn } from 'typeorm';
+import type { Relation } from 'typeorm';
 import { Resident } from '../../residents/entities/resident.entity.js';
 
 @Entity('guardians')
@@ -21,20 +16,17 @@ export class Guardian {
   @Column({ name: 'photo_path', nullable: true })
   photoPath?: string;
 
-  // Dado sensível, obrigatório em todo cadastro de responsável — criptografar em
-  // repouso (equivalente ao WoobaUtilitariosCore.CriptografiaRSA) antes de persistir.
   @Column()
   cpf!: string;
 
   @Column({ name: 'contacted_clinic_ids', type: 'text', array: true, default: '{}' })
   contactedClinicIds!: string[];
 
-  // N:N real, não 1:1 — um responsável pode acompanhar idosos em clínicas diferentes.
   @ManyToMany(() => Resident, (resident) => resident.guardians)
   @JoinTable({
     name: 'guardian_resident',
     joinColumn: { name: 'guardian_id', referencedColumnName: 'id' },
     inverseJoinColumn: { name: 'resident_id', referencedColumnName: 'id' },
   })
-  residents!: Resident[];
+  residents!: Relation<Resident[]>;
 }

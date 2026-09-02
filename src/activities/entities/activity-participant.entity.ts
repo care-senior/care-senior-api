@@ -6,6 +6,7 @@ import {
   PrimaryGeneratedColumn,
   Unique,
 } from 'typeorm';
+import type { Relation } from 'typeorm';
 import { Activity } from './activity.entity.js';
 import { Resident } from '../../residents/entities/resident.entity.js';
 import { StaffMember } from '../../staff/entities/staff-member.entity.js';
@@ -24,7 +25,7 @@ export class ActivityParticipant {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'activity_id' })
-  activity!: Activity;
+  activity!: Relation<Activity>;
 
   @Column({ name: 'resident_id' })
   residentId!: string;
@@ -33,7 +34,7 @@ export class ActivityParticipant {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'resident_id' })
-  resident!: Resident;
+  resident!: Relation<Resident>;
 
   @Column({
     type: 'enum',
@@ -51,10 +52,9 @@ export class ActivityParticipant {
   @Column({ name: 'registered_by_staff_id', nullable: true })
   registeredByStaffId?: string;
 
-  // Nunca incluir num DTO de saída pra `guardian` — auditoria interna, não é dado do cuidado.
   @ManyToOne(() => StaffMember, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'registered_by_staff_id' })
-  registeredBy?: StaffMember;
+  registeredBy?: Relation<StaffMember>;
 
   @Column({ type: 'int', nullable: true })
   rating?: number;

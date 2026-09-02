@@ -1,9 +1,5 @@
-import {
-  Column,
-  Entity,
-  OneToMany,
-  PrimaryGeneratedColumn,
-} from 'typeorm';
+import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import type { Relation } from 'typeorm';
 import { Resident } from '../../residents/entities/resident.entity.js';
 import { StaffMember } from '../../staff/entities/staff-member.entity.js';
 import { Room } from '../../rooms/entities/room.entity.js';
@@ -27,8 +23,6 @@ export class Clinic {
   @Column({ name: 'operating_hours' })
   operatingHours!: string;
 
-  // Nome diferente de `scheduledActivities` de propósito: este é texto livre de
-  // serviços oferecidos, não a agenda (entidade Activity).
   @Column({ type: 'text', array: true, default: '{}' })
   activities!: string[];
 
@@ -48,17 +42,17 @@ export class Clinic {
   photoPath?: string;
 
   @OneToMany(() => Resident, (resident) => resident.clinic)
-  residents!: Resident[];
+  residents!: Relation<Resident[]>;
 
   @OneToMany(() => StaffMember, (staffMember) => staffMember.clinic)
-  staffMembers!: StaffMember[];
+  staffMembers!: Relation<StaffMember[]>;
 
   @OneToMany(() => Room, (room) => room.clinic)
-  rooms!: Room[];
+  rooms!: Relation<Room[]>;
 
   @OneToMany(() => Activity, (activity) => activity.clinic)
-  scheduledActivities!: Activity[];
+  scheduledActivities!: Relation<Activity[]>;
 
   @OneToMany(() => Routine, (routine) => routine.clinic)
-  routines!: Routine[];
+  routines!: Relation<Routine[]>;
 }

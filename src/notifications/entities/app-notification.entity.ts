@@ -1,10 +1,5 @@
-import {
-  Column,
-  CreateDateColumn,
-  Entity,
-  OneToMany,
-  PrimaryGeneratedColumn,
-} from 'typeorm';
+import { Column, CreateDateColumn, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import type { Relation } from 'typeorm';
 import { NotificationRecipient } from './notification-recipient.entity.js';
 import { NotificationType } from '../../common/enums/index.js';
 
@@ -26,5 +21,5 @@ export class AppNotification {
   createdAt!: Date;
 
   @OneToMany(() => NotificationRecipient, (recipient) => recipient.notification)
-  recipients!: NotificationRecipient[];
+  recipients!: Relation<NotificationRecipient[]>;
 }
