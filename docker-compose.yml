@@ -31,9 +31,6 @@ services:
       db:
         condition: service_healthy
     restart: unless-stopped
-
-  # Reaproveita o estágio "build" do Dockerfile (tem as devDependencies) para lint/testes.
-  # Não sobe com `docker compose up` — só via `docker compose run --rm api-dev ...`.
   api-dev:
     build:
       context: .
