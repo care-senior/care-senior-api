@@ -6,14 +6,13 @@ import {
   OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
+import type { Relation } from 'typeorm';
 import { Clinic } from '../../clinics/entities/clinic.entity.js';
 import { Medication } from '../../medications/entities/medication.entity.js';
 import { Routine } from '../../routines/entities/routine.entity.js';
 import { ActivityParticipant } from './activity-participant.entity.js';
 import { ActivityType } from '../../common/enums/index.js';
 
-// Compartilhada por vários idosos da mesma clínica — a relação com Resident é via
-// ActivityParticipant, não um FK direto.
 @Entity('activities')
 export class Activity {
   @PrimaryGeneratedColumn('uuid')
@@ -26,7 +25,7 @@ export class Activity {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'clinic_id' })
-  clinic!: Clinic;
+  clinic!: Relation<Clinic>;
 
   @Column({ type: 'enum', enum: ActivityType })
   type!: ActivityType;
@@ -43,15 +42,13 @@ export class Activity {
   @Column({ name: 'photo_path', nullable: true })
   photoPath?: string;
 
-  // Só preenchido quando type == 'medication' — liga a dose agendada à prescrição.
   @Column({ name: 'medication_id', nullable: true })
   medicationId?: string;
 
   @ManyToOne(() => Medication, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'medication_id' })
-  medication?: Medication;
+  medication?: Relation<Medication>;
 
-  // Preenchido quando a atividade foi gerada automaticamente por uma Routine.
   @Column({ name: 'routine_id', nullable: true })
   routineId?: string;
 
@@ -60,8 +57,8 @@ export class Activity {
     onDelete: 'SET NULL',
   })
   @JoinColumn({ name: 'routine_id' })
-  routine?: Routine;
+  routine?: Relation<Routine>;
 
   @OneToMany(() => ActivityParticipant, (participant) => participant.activity)
-  participants!: ActivityParticipant[];
+  participants!: Relation<ActivityParticipant[]>;
 }

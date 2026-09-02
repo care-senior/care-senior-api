@@ -7,6 +7,7 @@ import {
   OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
+import type { Relation } from 'typeorm';
 import { Clinic } from '../../clinics/entities/clinic.entity.js';
 import { Room } from '../../rooms/entities/room.entity.js';
 import { Guardian } from '../../guardians/entities/guardian.entity.js';
@@ -31,24 +32,20 @@ export class Resident {
   @Column({ name: 'health_notes', type: 'text' })
   healthNotes!: string;
 
-  // Nulo antes do primeiro vínculo e depois de uma desvinculação/alta — histórico
-  // e responsáveis continuam existindo mesmo sem clínica.
   @Column({ name: 'clinic_id', nullable: true })
   clinicId?: string;
 
   @ManyToOne(() => Clinic, (clinic) => clinic.residents, { nullable: true })
   @JoinColumn({ name: 'clinic_id' })
-  clinic?: Clinic;
+  clinic?: Relation<Clinic>;
 
   @Column({ name: 'room_id', nullable: true })
   roomId?: string;
 
   @ManyToOne(() => Room, (room) => room.residents, { nullable: true })
   @JoinColumn({ name: 'room_id' })
-  room?: Room;
+  room?: Relation<Room>;
 
-  // Getter, não coluna — mantém o contrato que o mobile já espera (`roomNumber` como
-  // string solta) sem duplicar o dado de `room.number`.
   get roomNumber(): string | undefined {
     return this.room?.number;
   }
@@ -69,20 +66,20 @@ export class Resident {
   emergencyContactPhone?: string;
 
   @ManyToMany(() => Guardian, (guardian) => guardian.residents)
-  guardians!: Guardian[];
+  guardians!: Relation<Guardian[]>;
 
   @OneToMany(() => HealthRecord, (healthRecord) => healthRecord.resident)
-  healthRecords!: HealthRecord[];
+  healthRecords!: Relation<HealthRecord[]>;
 
   @OneToMany(() => ActivityParticipant, (participant) => participant.resident)
-  activityParticipations!: ActivityParticipant[];
+  activityParticipations!: Relation<ActivityParticipant[]>;
 
   @OneToMany(() => OutingRequest, (outingRequest) => outingRequest.resident)
-  outingRequests!: OutingRequest[];
+  outingRequests!: Relation<OutingRequest[]>;
 
   @OneToMany(() => Medication, (medication) => medication.resident)
-  medications!: Medication[];
+  medications!: Relation<Medication[]>;
 
   @OneToMany(() => Message, (message) => message.resident)
-  messages!: Message[];
+  messages!: Relation<Message[]>;
 }

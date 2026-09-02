@@ -8,14 +8,13 @@ import {
   OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
+import type { Relation } from 'typeorm';
 import { Clinic } from '../../clinics/entities/clinic.entity.js';
 import { Resident } from '../../residents/entities/resident.entity.js';
 import { Room } from '../../rooms/entities/room.entity.js';
 import { Activity } from '../../activities/entities/activity.entity.js';
 import { ActivityType, RoutineScope, Weekday } from '../../common/enums/index.js';
 
-// Sem equivalente no app mobile — só existe pro backend/web app. O mobile só vê o
-// resultado (mais atividades na agenda), nunca a rotina em si.
 @Entity('routines')
 export class Routine {
   @PrimaryGeneratedColumn('uuid')
@@ -26,7 +25,7 @@ export class Routine {
 
   @ManyToOne(() => Clinic, (clinic) => clinic.routines, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'clinic_id' })
-  clinic!: Clinic;
+  clinic!: Relation<Clinic>;
 
   @Column()
   title!: string;
@@ -43,31 +42,28 @@ export class Routine {
   @Column({ type: 'enum', enum: RoutineScope })
   scope!: RoutineScope;
 
-  // Preenchido só quando scope == 'specificResidents'.
   @ManyToMany(() => Resident)
   @JoinTable({
     name: 'routine_residents',
     joinColumn: { name: 'routine_id', referencedColumnName: 'id' },
     inverseJoinColumn: { name: 'resident_id', referencedColumnName: 'id' },
   })
-  residents?: Resident[];
+  residents?: Relation<Resident[]>;
 
-  // Preenchido só quando scope == 'specificRoom'.
   @ManyToMany(() => Room)
   @JoinTable({
     name: 'routine_rooms',
     joinColumn: { name: 'routine_id', referencedColumnName: 'id' },
     inverseJoinColumn: { name: 'room_id', referencedColumnName: 'id' },
   })
-  rooms?: Room[];
+  rooms?: Relation<Room[]>;
 
   @Column({ type: 'text', nullable: true })
   instructions?: string;
 
-  // Pausar uma rotina não apaga o histórico, só para de gerar novas atividades.
   @Column({ default: true })
   active!: boolean;
 
   @OneToMany(() => Activity, (activity) => activity.routine)
-  generatedActivities!: Activity[];
+  generatedActivities!: Relation<Activity[]>;
 }

@@ -6,6 +6,7 @@ import {
   ManyToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
+import type { Relation } from 'typeorm';
 import { Resident } from '../../residents/entities/resident.entity.js';
 import { Guardian } from '../../guardians/entities/guardian.entity.js';
 import { OutingRequestStatus } from '../../common/enums/index.js';
@@ -22,14 +23,14 @@ export class OutingRequest {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'resident_id' })
-  resident!: Resident;
+  resident!: Relation<Resident>;
 
   @Column({ name: 'guardian_id' })
   guardianId!: string;
 
   @ManyToOne(() => Guardian, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'guardian_id' })
-  guardian!: Guardian;
+  guardian!: Relation<Guardian>;
 
   @Column({ name: 'departure_at', type: 'timestamptz' })
   departureAt!: Date;
@@ -53,7 +54,6 @@ export class OutingRequest {
   @Column({ name: 'responded_at', type: 'timestamptz', nullable: true })
   respondedAt?: Date;
 
-  // Só preenchido quando status == 'rejected' — visível ao responsável.
   @Column({ name: 'rejection_reason', type: 'text', nullable: true })
   rejectionReason?: string;
 }

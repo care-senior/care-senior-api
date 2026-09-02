@@ -6,11 +6,10 @@ import {
   PrimaryGeneratedColumn,
   Unique,
 } from 'typeorm';
+import type { Relation } from 'typeorm';
 import { AppNotification } from './app-notification.entity.js';
 import { UserRole } from '../../common/enums/index.js';
 
-// Substitui o campo `audience` genérico do mock: `read` é por usuário, então cada
-// destinatário (staff ou guardian) tem sua própria linha e seu próprio `readAt`.
 @Entity('notification_recipients')
 @Unique(['notificationId', 'userId'])
 export class NotificationRecipient {
@@ -24,9 +23,8 @@ export class NotificationRecipient {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'notification_id' })
-  notification!: AppNotification;
+  notification!: Relation<AppNotification>;
 
-  // FK polimórfica → StaffMember ou Guardian, conforme userRole.
   @Column({ name: 'user_id' })
   userId!: string;
 

@@ -1,10 +1,5 @@
-import {
-  Column,
-  Entity,
-  JoinColumn,
-  ManyToOne,
-  PrimaryGeneratedColumn,
-} from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import type { Relation } from 'typeorm';
 import { Resident } from '../../residents/entities/resident.entity.js';
 import { StaffMember } from '../../staff/entities/staff-member.entity.js';
 
@@ -20,13 +15,11 @@ export class HealthRecord {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'resident_id' })
-  resident!: Resident;
+  resident!: Relation<Resident>;
 
   @Column()
   type!: string;
 
-  // Texto livre proposital (ex.: "130/85 mmHg") — separar valor+unidade só quando
-  // alertas automáticos de saúde precisarem comparar valores numericamente.
   @Column()
   value!: string;
 
@@ -38,5 +31,5 @@ export class HealthRecord {
 
   @ManyToOne(() => StaffMember, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'recorded_by_staff_id' })
-  recordedBy!: StaffMember;
+  recordedBy!: Relation<StaffMember>;
 }

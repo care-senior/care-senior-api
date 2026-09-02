@@ -6,10 +6,10 @@ import {
   ManyToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
+import type { Relation } from 'typeorm';
 import { Resident } from '../../residents/entities/resident.entity.js';
 import { UserRole } from '../../common/enums/index.js';
 
-// Recado pontual entre equipe e responsável sobre um idoso — não é chat em tempo real.
 @Entity('messages')
 export class Message {
   @PrimaryGeneratedColumn('uuid')
@@ -22,7 +22,7 @@ export class Message {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'resident_id' })
-  resident!: Resident;
+  resident!: Relation<Resident>;
 
   @Column({ name: 'sender_role', type: 'enum', enum: UserRole })
   senderRole!: UserRole;
