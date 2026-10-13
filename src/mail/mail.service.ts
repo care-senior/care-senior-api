@@ -1,13 +1,22 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import nodemailer, { type Transporter } from 'nodemailer';
+import { UserRole } from '../common/enums/index.js';
 import type { Environment } from '../config/environment.js';
 
 export interface InviteMail {
   to: string;
   name: string;
   inviteUrl: string;
+  role: UserRole;
 }
+
+const INVITE_REASON: Record<UserRole, string> = {
+  [UserRole.STAFF]:
+    'Você foi cadastrado(a) na equipe de uma clínica no Care Senior.',
+  [UserRole.GUARDIAN]:
+    'Você foi cadastrado(a) como responsável de um idoso acompanhado por uma clínica no Care Senior.',
+};
 
 export interface PasswordResetMail {
   to: string;
@@ -50,7 +59,7 @@ export class MailService {
     });
   }
 
-  async sendInvite({ to, name, inviteUrl }: InviteMail) {
+  async sendInvite({ to, name, inviteUrl, role }: InviteMail) {
     await this.transporter.sendMail({
       from: this.from,
       to,
@@ -58,8 +67,8 @@ export class MailService {
       text: [
         `Olá, ${name}!`,
         '',
-        'Você foi cadastrado(a) na equipe de uma clínica no Care Senior.',
-        `Para criar sua senha e acessar o painel, acesse: ${inviteUrl}`,
+        INVITE_REASON[role],
+        `Para criar sua senha de acesso, acesse: ${inviteUrl}`,
         '',
         'O link expira em 72 horas. Depois disso, use "Esqueci minha senha" na tela de login.',
       ].join('\n'),

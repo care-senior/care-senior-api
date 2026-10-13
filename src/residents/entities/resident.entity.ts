@@ -29,8 +29,8 @@ export class Resident {
   @Column({ type: 'int' })
   age!: number;
 
-  @Column({ name: 'health_notes', type: 'text' })
-  healthNotes!: string;
+  @Column({ name: 'health_notes', type: 'text', nullable: true })
+  healthNotes?: string | null;
 
   @Column({ name: 'clinic_id', nullable: true })
   clinicId?: string;

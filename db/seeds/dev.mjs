@@ -9,6 +9,8 @@ const ROOM_14A_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0102';
 const ROOM_14B_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0103';
 const RESIDENT_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0301';
 const GUARDIAN_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0401';
+const PENDING_GUARDIAN_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0402';
+const PENDING_RESIDENT_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0302';
 
 const STAFF = [
   [
@@ -83,5 +85,26 @@ export default async function seed(client) {
     `INSERT INTO guardian_resident (guardian_id, resident_id) VALUES ($1, $2)
      ON CONFLICT DO NOTHING`,
     [GUARDIAN_ID, RESIDENT_ID],
+  );
+
+  await client.query(
+    `INSERT INTO guardians (id, name, email, cpf, password, contacted_clinic_ids)
+     VALUES ($1, 'Camila Torres', 'vinculo-pendente@caresenior.dev', $2, $3, $4)
+     ON CONFLICT (id) DO NOTHING`,
+    [PENDING_GUARDIAN_ID, encryptField('52998224725'), password, [CLINIC_ID]],
+  );
+
+  await client.query(
+    `INSERT INTO residents (id, name, age, health_notes, mood, peculiarities)
+     VALUES ($1, 'Benedito Nogueira', 80, 'Hipertensão leve, controlada com medicação diária.',
+       'calm', 'Não gosta de barulho alto, prefere refeições cedo')
+     ON CONFLICT (id) DO NOTHING`,
+    [PENDING_RESIDENT_ID],
+  );
+
+  await client.query(
+    `INSERT INTO guardian_resident (guardian_id, resident_id) VALUES ($1, $2)
+     ON CONFLICT DO NOTHING`,
+    [PENDING_GUARDIAN_ID, PENDING_RESIDENT_ID],
   );
 }
