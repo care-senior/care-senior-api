@@ -14,7 +14,9 @@ import {
   UserRole,
 } from '../../../common/enums/index.js';
 import type { AuthenticatedUser } from '../../../common/types/authenticated-user.interface.js';
+import { Medication } from '../../medications/entities/medication.entity.js';
 import { Resident } from '../../residents/entities/resident.entity.js';
+import { ResidentAccessService } from '../../residents/services/resident-access.service.js';
 import { ActivitiesService } from './activities.service.js';
 import { ActivityParticipant } from '../entities/activity-participant.entity.js';
 import { Activity } from '../entities/activity.entity.js';
@@ -49,11 +51,10 @@ describe('ActivitiesService', () => {
     ),
     existsBy: vi.fn(),
   };
-  const residentRepository = {
-    countBy: vi.fn(),
-    createQueryBuilder: vi.fn(() =>
-      chainableQuery({ getExists: vi.fn().mockResolvedValue(false) }),
-    ),
+  const residentRepository = { countBy: vi.fn() };
+  const medicationRepository = { findOneBy: vi.fn() };
+  const residentAccess = {
+    assertIsGuardianOf: vi.fn(() => Promise.reject(new ForbiddenException())),
   };
   const locked = { activity: null as Activity | null };
   const manager = {
@@ -115,6 +116,11 @@ describe('ActivitiesService', () => {
         ActivitiesService,
         { provide: getRepositoryToken(Activity), useValue: activityRepository },
         { provide: getRepositoryToken(Resident), useValue: residentRepository },
+        {
+          provide: getRepositoryToken(Medication),
+          useValue: medicationRepository,
+        },
+        { provide: ResidentAccessService, useValue: residentAccess },
         { provide: DataSource, useValue: dataSource },
       ],
     }).compile();
@@ -203,6 +209,51 @@ describe('ActivitiesService', () => {
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
       expect(dataSource.transaction).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('medication activities', () => {
+    const dose = (overrides: object = {}) => ({
+      type: ActivityType.MEDICATION,
+      title: 'Losartana 50mg',
+      scheduledTime: '2030-01-01T10:00:00Z',
+      residentIds: ['resident-1'],
+      medicationId: 'medication-1',
+      ...overrides,
+    });
+
+    it('only links a prescription to a dose of its own resident', async () => {
+      residentRepository.countBy.mockResolvedValue(2);
+      medicationRepository.findOneBy.mockResolvedValue({
+        id: 'medication-1',
+        residentId: 'resident-1',
+        active: true,
+      });
+
+      await expect(
+        service.create(
+          dose({ residentIds: ['resident-1', 'resident-2'] }),
+          caregiver,
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      residentRepository.countBy.mockResolvedValue(1);
+      await expect(
+        service.create(dose({ type: ActivityType.MEAL }), caregiver),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(dataSource.transaction).not.toHaveBeenCalled();
+    });
+
+    it('refuses a deactivated prescription for a new dose', async () => {
+      residentRepository.countBy.mockResolvedValue(1);
+      medicationRepository.findOneBy.mockResolvedValue({
+        id: 'medication-1',
+        residentId: 'resident-1',
+        active: false,
+      });
+
+      await expect(service.create(dose(), caregiver)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
     });
   });
 

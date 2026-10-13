@@ -4,6 +4,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
 } from 'class-validator';
 import { ActivityType } from '../../../common/enums/index.js';
@@ -29,6 +30,11 @@ export class CreateActivityDto {
   @IsString()
   @MaxLength(2000)
   detail?: string;
+
+  /** Only for a `medication` activity: the prescription of its single participant. */
+  @IsOptional()
+  @IsUUID()
+  medicationId?: string;
 
   /** Residents of the caller clinic taking part. */
   @IsResidentIdList()
