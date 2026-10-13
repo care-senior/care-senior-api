@@ -89,7 +89,7 @@ export class AuthController {
     @Res({ passthrough: true }) response: Response,
   ): Promise<AuthResponseDto> {
     const refreshToken = dto.refreshToken ?? readRefreshTokenCookie(request);
-    if (!refreshToken) throw new UnauthorizedException('Refresh token ausente');
+    if (!refreshToken) throw new UnauthorizedException('Missing refresh token');
 
     const result = await this.auth.refresh(refreshToken);
     return this.deliverSession(request, response, result);
