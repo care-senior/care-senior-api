@@ -18,9 +18,9 @@ jobs:
           DB_PASSWORD=care_senior_ci
           DB_NAME=care_senior
           API_PORT=3000
-          JWT_ACCESS_SECRET=ci-access-secret-with-at-least-32-characters
+          JWT_SECRET=ci-access-secret-with-at-least-32-characters
           JWT_REFRESH_SECRET=ci-refresh-secret-with-at-least-32-characters
-          CORS_ORIGINS=http://localhost:5173
+          CORS_ORIGIN=http://localhost:5173
           COOKIE_SECURE=false
           SMTP_HOST=mailpit
           SMTP_PORT=1025

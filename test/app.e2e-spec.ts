@@ -12,7 +12,7 @@ describe('AppController (e2e)', () => {
     await testApp.close();
   });
 
-  it('GET /api/v1 is public', () => {
+  it('GET /api/v1 é público', () => {
     return request(testApp.app.getHttpServer())
       .get('/api/v1')
       .expect(200)

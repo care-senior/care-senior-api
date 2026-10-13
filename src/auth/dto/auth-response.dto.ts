@@ -3,10 +3,10 @@ import { AuthUserDto } from './auth-user.dto.js';
 export class AuthResponseDto {
   accessToken!: string;
 
-  /** Omitted for the web app, which receives it as an httpOnly cookie. */
+  /** Ausente para o web app, que recebe o refresh token num cookie httpOnly. */
   refreshToken?: string;
 
-  /** Access token lifetime in seconds. */
+  /** Validade do access token, em segundos. */
   expiresIn!: number;
 
   user!: AuthUserDto;

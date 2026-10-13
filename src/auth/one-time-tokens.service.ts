@@ -33,7 +33,7 @@ export class OneTimeTokensService {
     await this.tokens.update(
       {
         userId: account.id,
-        userRole: account.userRole,
+        userRole: account.role,
         purpose,
         usedAt: IsNull(),
       },
@@ -43,7 +43,7 @@ export class OneTimeTokensService {
     const token = randomBytes(TOKEN_BYTES).toString('base64url');
     await this.tokens.insert({
       userId: account.id,
-      userRole: account.userRole,
+      userRole: account.role,
       purpose,
       tokenHash: hashToken(token),
       expiresAt: new Date(now.getTime() + ttlMs),
@@ -64,7 +64,7 @@ export class OneTimeTokensService {
       .execute();
 
     const [owner] = result.raw as { user_id: string; user_role: UserRole }[];
-    if (!owner) throw new BadRequestException('Invalid or expired token');
+    if (!owner) throw new BadRequestException('Token inválido ou expirado');
     return { userId: owner.user_id, userRole: owner.user_role };
   }
 }

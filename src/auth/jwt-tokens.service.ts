@@ -1,24 +1,23 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { StaffRole, UserRole } from '../common/enums/index.js';
+import type { StaffRole, UserRole } from '../common/enums/index.js';
+import type { AuthenticatedUser } from '../common/types/authenticated-user.interface.js';
 import { parseDurationToMs } from '../common/utils/duration.js';
 import type { Environment } from '../config/environment.js';
 import type { Account } from './accounts.service.js';
-import type { AuthenticatedUser } from './authenticated-user.js';
 import type { AuthSession } from './entities/auth-session.entity.js';
 
 interface AccessTokenPayload {
   sub: string;
-  userRole: UserRole;
-  sid: string;
+  role: UserRole;
   staffRole?: StaffRole;
   clinicId?: string;
 }
 
 export interface RefreshTokenPayload {
   sub: string;
-  userRole: UserRole;
+  role: UserRole;
   sid: string;
   jti: string;
 }
@@ -39,7 +38,7 @@ export class JwtTokensService {
     private readonly jwt: JwtService,
     config: ConfigService<Environment, true>,
   ) {
-    this.accessSecret = config.get('JWT_ACCESS_SECRET', { infer: true });
+    this.accessSecret = config.get('JWT_SECRET', { infer: true });
     this.refreshSecret = config.get('JWT_REFRESH_SECRET', { infer: true });
     this.accessTokenTtlSeconds =
       parseDurationToMs(config.get('JWT_ACCESS_TTL', { infer: true })) / 1000;
@@ -48,14 +47,10 @@ export class JwtTokensService {
     );
   }
 
-  async signAccessToken(
-    account: Account,
-    sessionId: string,
-  ): Promise<SignedAccessToken> {
+  async signAccessToken(account: Account): Promise<SignedAccessToken> {
     const payload: AccessTokenPayload = {
       sub: account.id,
-      userRole: account.userRole,
-      sid: sessionId,
+      role: account.role,
       staffRole: account.staffRole,
       clinicId: account.clinicId,
     };
@@ -69,7 +64,7 @@ export class JwtTokensService {
   signRefreshToken(session: AuthSession): Promise<string> {
     const payload: RefreshTokenPayload = {
       sub: session.userId,
-      userRole: session.userRole,
+      role: session.userRole,
       sid: session.id,
       jti: session.refreshTokenId,
     };
@@ -86,8 +81,7 @@ export class JwtTokensService {
     );
     return {
       id: payload.sub,
-      userRole: payload.userRole,
-      sessionId: payload.sid,
+      role: payload.role,
       staffRole: payload.staffRole,
       clinicId: payload.clinicId,
     };
@@ -104,7 +98,7 @@ export class JwtTokensService {
     try {
       return await this.jwt.verifyAsync<T>(token, { secret });
     } catch {
-      throw new UnauthorizedException('Invalid or expired token');
+      throw new UnauthorizedException('Token inválido ou expirado');
     }
   }
 }

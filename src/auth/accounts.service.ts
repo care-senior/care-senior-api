@@ -7,7 +7,7 @@ import { StaffMember } from '../staff/entities/staff-member.entity.js';
 
 export interface Account {
   id: string;
-  userRole: UserRole;
+  role: UserRole;
   name: string;
   email: string;
   photoPath?: string | null;
@@ -31,49 +31,49 @@ export class AccountsService {
   ) {}
 
   async findByEmailWithPassword(
-    userRole: UserRole,
+    role: UserRole,
     email: string,
   ): Promise<AccountWithPassword | null> {
-    const entity = await this.accountQuery(userRole)
+    const entity = await this.accountQuery(role)
       .addSelect('account.password')
       .where('LOWER(account.email) = LOWER(:email)', { email })
       .getOne();
     if (!entity) return null;
     return {
-      ...this.toAccount(userRole, entity),
+      ...this.toAccount(role, entity),
       passwordHash: entity.password ?? null,
     };
   }
 
-  async findById(userRole: UserRole, id: string): Promise<Account | null> {
-    const entity = await this.accountQuery(userRole)
+  async findById(role: UserRole, id: string): Promise<Account | null> {
+    const entity = await this.accountQuery(role)
       .where('account.id = :id', { id })
       .getOne();
-    return entity ? this.toAccount(userRole, entity) : null;
+    return entity ? this.toAccount(role, entity) : null;
   }
 
-  async updatePassword(userRole: UserRole, id: string, passwordHash: string) {
-    await this.repositoryFor(userRole).update(id, { password: passwordHash });
+  async updatePassword(role: UserRole, id: string, passwordHash: string) {
+    await this.repositoryFor(role).update(id, { password: passwordHash });
   }
 
-  private accountQuery(userRole: UserRole): SelectQueryBuilder<AccountEntity> {
+  private accountQuery(role: UserRole): SelectQueryBuilder<AccountEntity> {
     const columns =
-      userRole === UserRole.STAFF
+      role === UserRole.STAFF
         ? ['id', 'name', 'email', 'photoPath', 'role', 'clinicId']
         : ['id', 'name', 'email', 'photoPath'];
-    return (this.repositoryFor(userRole) as Repository<AccountEntity>)
+    return (this.repositoryFor(role) as Repository<AccountEntity>)
       .createQueryBuilder('account')
       .select(columns.map((column) => `account.${column}`));
   }
 
-  private repositoryFor(userRole: UserRole) {
-    return userRole === UserRole.STAFF ? this.staffMembers : this.guardians;
+  private repositoryFor(role: UserRole) {
+    return role === UserRole.STAFF ? this.staffMembers : this.guardians;
   }
 
-  private toAccount(userRole: UserRole, entity: AccountEntity): Account {
+  private toAccount(role: UserRole, entity: AccountEntity): Account {
     const account: Account = {
       id: entity.id,
-      userRole,
+      role,
       name: entity.name,
       email: entity.email,
       photoPath: entity.photoPath ?? null,

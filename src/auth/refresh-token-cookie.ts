@@ -1,9 +1,11 @@
 import type { CookieOptions, Request, Response } from 'express';
-import { API_PREFIX, API_VERSION } from '../configure-app.js';
+import { API_PREFIX } from '../configure-app.js';
 
 export const REFRESH_TOKEN_COOKIE = 'care_senior_refresh_token';
 
-/** The web app identifies itself with this header to get the refresh token as a cookie. */
+// Exceção documentada à regra "nunca ramificar por cliente" (guia, seção 4):
+// o header só escolhe como o refresh token é entregue ao web (cookie
+// httpOnly em vez do body). Nunca decide autorização nem regra de negócio.
 export const CLIENT_PLATFORM_HEADER = 'x-client-platform';
 const WEB_PLATFORM = 'web';
 
@@ -22,7 +24,7 @@ export function refreshTokenCookieOptions(secure: boolean): CookieOptions {
     httpOnly: true,
     secure,
     sameSite: 'strict',
-    path: `/${API_PREFIX}/v${API_VERSION}/auth`,
+    path: `/${API_PREFIX}/auth`,
   };
 }
 
