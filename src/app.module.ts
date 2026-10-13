@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller.js';
+import { ActivitiesModule } from './activities/activities.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { ClinicsModule } from './clinics/clinics.module.js';
 import { GuardiansModule } from './guardians/guardians.module.js';
@@ -64,6 +65,7 @@ const ENTITIES = [
         synchronize: false,
       }),
     }),
+    ActivitiesModule,
     AuthModule,
     ClinicsModule,
     GuardiansModule,
