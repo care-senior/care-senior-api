@@ -32,6 +32,7 @@ export class QueryStaffDto extends PaginationQueryDto {
   staffRole?: StaffRole;
 
   /** Deactivated staff members are left out unless this is `true`. */
+  @ApiPropertyOptional({ default: false })
   @IsOptional()
   @Transform(({ value }: { value: unknown }) =>
     value === 'true' ? true : value === 'false' ? false : value,
