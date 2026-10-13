@@ -18,10 +18,12 @@ import { paginate } from '../../../common/dto/paginated-response.dto.js';
 import {
   ActivityStatus,
   ActivityType,
+  NotificationType,
   UserRole,
 } from '../../../common/enums/index.js';
 import type { AuthenticatedUser } from '../../../common/types/authenticated-user.interface.js';
 import { Medication } from '../../medications/entities/medication.entity.js';
+import { NotifierService } from '../../notifications/services/notifier.service.js';
 import { Resident } from '../../residents/entities/resident.entity.js';
 import { ResidentAccessService } from '../../residents/services/resident-access.service.js';
 import {
@@ -62,6 +64,7 @@ export class ActivitiesService {
     private readonly medicationRepository: Repository<Medication>,
     private readonly dataSource: DataSource,
     private readonly residentAccess: ResidentAccessService,
+    private readonly notifier: NotifierService,
   ) {}
 
   async findAll(
@@ -374,7 +377,40 @@ export class ActivitiesService {
         },
       );
     });
-    return this.findOne(id, currentUser);
+    const activity = await this.findOne(id, currentUser);
+    await this.notifyOutcomes(activity, residentIds);
+    return activity;
+  }
+
+  // Each family hears only about their own resident.
+  private async notifyOutcomes(
+    activity: ActivityResponseDto,
+    residentIds: string[],
+  ) {
+    for (const participant of activity.participants) {
+      if (!residentIds.includes(participant.residentId)) continue;
+      const completed = participant.status === ActivityStatus.COMPLETED;
+      const details = completed
+        ? [
+            participant.rating && `nota ${participant.rating}/5`,
+            participant.comment,
+          ]
+            .filter(Boolean)
+            .join(' — ')
+        : participant.notes;
+      await this.notifier.notify(
+        {
+          type: NotificationType.GENERAL,
+          title: completed
+            ? `Atividade concluída: ${activity.title}`
+            : `Atividade não realizada: ${activity.title}`,
+          message: completed
+            ? `${participant.residentName} concluiu ${activity.title}${details ? `: ${details}` : '.'}`
+            : `${participant.residentName} não fez ${activity.title}: ${details}`,
+        },
+        { guardiansOf: participant.residentId },
+      );
+    }
   }
 
   // A guardian only gets the participants who are their residents: ratings,

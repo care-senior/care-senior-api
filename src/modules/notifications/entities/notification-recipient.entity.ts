@@ -37,5 +37,5 @@ export class NotificationRecipient {
   userRole!: UserRole;
 
   @Column({ name: 'read_at', type: 'timestamptz', nullable: true })
-  readAt?: Date;
+  readAt?: Date | null;
 }

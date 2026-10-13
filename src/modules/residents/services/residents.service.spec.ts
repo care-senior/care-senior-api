@@ -10,6 +10,7 @@ import { InvitationsService } from '../../auth/services/invitations.service.js';
 import { StaffRole, UserRole } from '../../../common/enums/index.js';
 import type { AuthenticatedUser } from '../../../common/types/authenticated-user.interface.js';
 import { Guardian } from '../../guardians/entities/guardian.entity.js';
+import { NotifierService } from '../../notifications/services/notifier.service.js';
 import { Room } from '../../rooms/entities/room.entity.js';
 import { Resident } from '../entities/resident.entity.js';
 import { ResidentAccessService } from './resident-access.service.js';
@@ -34,6 +35,7 @@ function chainableQuery(result: Record<string, unknown> = {}) {
 
 describe('ResidentsService', () => {
   let service: ResidentsService;
+  const notifier = { notify: vi.fn() };
   const residentRepository = {
     createQueryBuilder: vi.fn(() => chainableQuery()),
     findOne: vi.fn(),
@@ -76,6 +78,9 @@ describe('ResidentsService', () => {
   };
   const removeLink = vi.fn();
   const dataSource = {
+    manager: {
+      findOneBy: vi.fn(() => Promise.resolve({ name: 'Clínica Sol' })),
+    },
     transaction: vi.fn((work: (m: typeof manager) => Promise<unknown>) =>
       work(manager),
     ),
@@ -118,6 +123,7 @@ describe('ResidentsService', () => {
         { provide: getRepositoryToken(Guardian), useValue: guardianRepository },
         { provide: DataSource, useValue: dataSource },
         { provide: InvitationsService, useValue: invitations },
+        { provide: NotifierService, useValue: notifier },
       ],
     }).compile();
     service = module.get(ResidentsService);
@@ -179,6 +185,10 @@ describe('ResidentsService', () => {
         clinicId: 'clinic-1',
         roomId: 'room-2',
       });
+      expect(notifier.notify).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Vínculo aceito' }),
+        { guardiansOf: 'resident-1' },
+      );
     });
 
     it('refuses residents without a request for the clinic and residents already linked', async () => {
@@ -204,6 +214,7 @@ describe('ResidentsService', () => {
       await expect(
         service.discharge('resident-1', nurse),
       ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(notifier.notify).not.toHaveBeenCalled();
 
       residentRepository.findOne.mockResolvedValue(resident());
       await service.discharge('resident-1', nurse);
@@ -211,6 +222,10 @@ describe('ResidentsService', () => {
         clinicId: null,
         roomId: null,
       });
+      expect(notifier.notify).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Alta registrada' }),
+        { guardiansOf: 'resident-1' },
+      );
     });
   });
 

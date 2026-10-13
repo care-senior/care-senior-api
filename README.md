@@ -12,6 +12,7 @@ O domínio gira em torno de uma clínica que cuida de idosos (`Resident`), cada 
 | Linguagem      | TypeScript (ESM)        |
 | ORM            | TypeORM                 |
 | Banco de dados | PostgreSQL              |
+| Jobs agendados | @nestjs/schedule        |
 | Testes         | Vitest                  |
 | Lint           | oxlint                  |
 | Containers     | Docker + Docker Compose |
@@ -85,6 +86,7 @@ Cada entidade mapeia 1:1 com as tabelas descritas no [README do app mobile](../c
 | `Message`                                   | Recado entre equipe e responsável sobre um idoso                           |
 | `UserFeedback`                              | Feedback enviado por um colaborador ou responsável                         |
 | `AppNotification` / `NotificationRecipient` | Notificação e o controle de leitura por destinatário                       |
+| `ActivityReminder`                          | Lembrete de uma `Activity` já enviado (um por tipo), pra não repetir       |
 
 ## Decisões de modelagem
 
@@ -138,7 +140,7 @@ docker compose run --rm api-dev npm run test:e2e
 
 ## O que falta implementar
 
-Hoje existem as entidades TypeORM, o schema SQL, a autenticação (`/auth`) e os módulos de clinics, staff, guardians, residents, rooms, activities, medications, outing-requests, health-records e messages — as rotas prontas estão marcadas com ✅ nas tabelas abaixo; os demais domínios ainda não têm service, controller ou endpoint. O contrato de API abaixo é o mapeamento pra atender os dois clientes (mobile + web) sobre a mesma base de dados; "Cliente" na última coluna indica quem consome cada rota hoje, só pra saber o que quebra se o contrato mudar.
+Hoje existem as entidades TypeORM, o schema SQL, a autenticação (`/auth`) e os módulos de clinics, staff, guardians, residents, rooms, activities, medications, outing-requests, health-records, messages e notifications — as rotas prontas estão marcadas com ✅ nas tabelas abaixo; os demais domínios ainda não têm service, controller ou endpoint. O contrato de API abaixo é o mapeamento pra atender os dois clientes (mobile + web) sobre a mesma base de dados; "Cliente" na última coluna indica quem consome cada rota hoje, só pra saber o que quebra se o contrato mudar.
 
 Além dos endpoints, falta o upload de fotos (`photoPath`). Os medicamentos informados no autocadastro e no cadastro walk-in não têm rota própria: o app chama `POST /medications` uma vez por medicamento logo depois de criar o idoso.
 
@@ -323,11 +325,25 @@ Recados entre a família e a clínica sobre um idoso — lista simples, sem temp
 
 ### Notifications
 
+Caixa de entrada do usuário logado (staff ou responsável), mais recente primeiro. Cada destinatário tem sua linha e seu `readAt`; a notificação de outra pessoa responde `404`. Não há `POST`: a própria API cria as notificações quando algo acontece, e a falha ao notificar é logada sem desfazer a ação que a disparou. Sem push ainda — o app consulta a lista (`?unread=true` dá o número do badge em `meta.total`).
+
+| Evento                                    | Quem recebe                                                         |
+| ----------------------------------------- | ------------------------------------------------------------------- |
+| Nova solicitação de saída                 | Coordenadora e enfermeira da clínica do idoso                       |
+| Saída aprovada/recusada (com o motivo)    | Responsáveis do idoso                                               |
+| Recado novo                               | Responsáveis do idoso e, se veio da família, a equipe da clínica — nunca quem enviou |
+| Vínculo aceito, alta registrada           | Responsáveis do idoso                                               |
+| Participante concluiu/pulou uma atividade | Responsáveis daquele idoso (com nota, comentário ou motivo)         |
+| Atividade começa em até 30 min (`upcomingEvent`/`medicationUpcoming`) | Equipe ativa da clínica — só se ainda há participante `pending` |
+| Medicação sem registro 30 min depois do horário (`medicationOverdue`) | Equipe ativa da clínica                                |
+
+Os lembretes vêm de um job a cada 5 minutos (`@nestjs/schedule`). Cada lembrete sai uma vez por atividade: a tabela `activity_reminders` registra o envio, e o `INSERT ... ON CONFLICT DO NOTHING` garante isso mesmo com mais de uma instância da API rodando o job.
+
 | Método | Endpoint                  | Descrição               | Cliente | Observação |
-| ------ | --------------------------- | ---------------------------- | ------- | ------------ |
-| GET    | `/notifications`          | Lista do usuário logado | Mobile  |            |
-| PATCH  | `/notifications/:id/read` | Marcar como lida        | Mobile  |            |
-| PATCH  | `/notifications/read-all` | Marcar todas como lidas | Mobile  |            |
+| ------ | ------------------------- | ----------------------- | ------- | ---------- |
+| GET    | `/notifications`          | Lista do usuário logado (`?unread=`) | Mobile  | ✅ implementado |
+| PATCH  | `/notifications/:id/read` | Marcar como lida        | Mobile  | ✅ implementado — idempotente, mantém o primeiro `readAt` |
+| PATCH  | `/notifications/read-all` | Marcar todas como lidas | Mobile  | ✅ implementado — `204` |
 
 ### Reports (exclusivo web)
 

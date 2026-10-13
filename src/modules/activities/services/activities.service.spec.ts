@@ -15,6 +15,7 @@ import {
 } from '../../../common/enums/index.js';
 import type { AuthenticatedUser } from '../../../common/types/authenticated-user.interface.js';
 import { Medication } from '../../medications/entities/medication.entity.js';
+import { NotifierService } from '../../notifications/services/notifier.service.js';
 import { Resident } from '../../residents/entities/resident.entity.js';
 import { ResidentAccessService } from '../../residents/services/resident-access.service.js';
 import { ActivitiesService } from './activities.service.js';
@@ -42,6 +43,7 @@ function chainableQuery(result: Record<string, unknown> = {}) {
 
 describe('ActivitiesService', () => {
   let service: ActivitiesService;
+  const notifier = { notify: vi.fn() };
   const visible = { activity: null as Activity | null };
   const activityRepository = {
     createQueryBuilder: vi.fn(() =>
@@ -121,6 +123,7 @@ describe('ActivitiesService', () => {
           useValue: medicationRepository,
         },
         { provide: ResidentAccessService, useValue: residentAccess },
+        { provide: NotifierService, useValue: notifier },
         { provide: DataSource, useValue: dataSource },
       ],
     }).compile();

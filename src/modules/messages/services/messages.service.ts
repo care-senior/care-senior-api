@@ -8,9 +8,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { plainToInstance } from 'class-transformer';
 import { Repository } from 'typeorm';
 import { paginate } from '../../../common/dto/paginated-response.dto.js';
-import { UserRole } from '../../../common/enums/index.js';
+import { NotificationType, UserRole } from '../../../common/enums/index.js';
 import type { AuthenticatedUser } from '../../../common/types/authenticated-user.interface.js';
 import { Guardian } from '../../guardians/entities/guardian.entity.js';
+import { NotifierService } from '../../notifications/services/notifier.service.js';
+import { excerpt } from '../../notifications/utils/notification-text.js';
 import { Resident } from '../../residents/entities/resident.entity.js';
 import { ResidentAccessService } from '../../residents/services/resident-access.service.js';
 import { StaffMember } from '../../staff/entities/staff-member.entity.js';
@@ -36,6 +38,7 @@ export class MessagesService {
     @InjectRepository(Guardian)
     private readonly guardianRepository: Repository<Guardian>,
     private readonly residentAccess: ResidentAccessService,
+    private readonly notifier: NotifierService,
   ) {}
 
   async findAll(
@@ -98,6 +101,23 @@ export class MessagesService {
         senderName: await this.senderName(currentUser),
         text,
       }),
+    );
+    // A family message reaches the clinic and the other guardians; a clinic
+    // message reaches the family.
+    await this.notifier.notify(
+      {
+        type: NotificationType.GENERAL,
+        title: `Novo recado sobre ${resident.name}`,
+        message: `${saved.senderName}: ${excerpt(text)}`,
+      },
+      {
+        guardiansOf: residentId,
+        staffOf:
+          currentUser.role === UserRole.GUARDIAN
+            ? { clinicId: resident.clinicId }
+            : undefined,
+        except: currentUser.id,
+      },
     );
     return toResponse(saved);
   }

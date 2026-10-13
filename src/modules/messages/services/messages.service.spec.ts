@@ -4,6 +4,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { StaffRole, UserRole } from '../../../common/enums/index.js';
 import type { AuthenticatedUser } from '../../../common/types/authenticated-user.interface.js';
 import { Guardian } from '../../guardians/entities/guardian.entity.js';
+import { NotifierService } from '../../notifications/services/notifier.service.js';
 import { Resident } from '../../residents/entities/resident.entity.js';
 import { ResidentAccessService } from '../../residents/services/resident-access.service.js';
 import { StaffMember } from '../../staff/entities/staff-member.entity.js';
@@ -12,6 +13,7 @@ import { MessagesService } from './messages.service.js';
 
 describe('MessagesService', () => {
   let service: MessagesService;
+  const notifier = { notify: vi.fn() };
   const messageRepository = {
     create: vi.fn((data: object) => data),
     save: vi.fn((entity: object) =>
@@ -47,6 +49,7 @@ describe('MessagesService', () => {
         { provide: getRepositoryToken(StaffMember), useValue: staffRepository },
         { provide: getRepositoryToken(Guardian), useValue: guardianRepository },
         { provide: ResidentAccessService, useValue: residentAccess },
+        { provide: NotifierService, useValue: notifier },
       ],
     }).compile();
     service = module.get(MessagesService);

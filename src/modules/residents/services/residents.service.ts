@@ -14,7 +14,7 @@ import {
 import { InvitationsService } from '../../auth/services/invitations.service.js';
 import { paginate } from '../../../common/dto/paginated-response.dto.js';
 import type { PaginationQueryDto } from '../../../common/dto/pagination-query.dto.js';
-import { UserRole } from '../../../common/enums/index.js';
+import { NotificationType, UserRole } from '../../../common/enums/index.js';
 import type { AuthenticatedUser } from '../../../common/types/authenticated-user.interface.js';
 import { isUniqueViolation } from '../../../common/utils/database-errors.js';
 import { containsPattern } from '../../../common/utils/like-pattern.js';
@@ -22,7 +22,9 @@ import {
   GuardianPageDto,
   GuardianResponseDto,
 } from '../../guardians/dto/guardian-response.dto.js';
+import { Clinic } from '../../clinics/entities/clinic.entity.js';
 import { Guardian } from '../../guardians/entities/guardian.entity.js';
+import { NotifierService } from '../../notifications/services/notifier.service.js';
 import { lockRoomWithFreeBed } from '../../rooms/utils/room-occupancy.js';
 import type { AddGuardianDto } from '../dto/add-guardian.dto.js';
 import type { AssignRoomDto } from '../dto/assign-room.dto.js';
@@ -45,6 +47,7 @@ export class ResidentsService {
     private readonly dataSource: DataSource,
     private readonly invitations: InvitationsService,
     private readonly residentAccess: ResidentAccessService,
+    private readonly notifier: NotifierService,
   ) {}
 
   async findAll(
@@ -146,7 +149,16 @@ export class ResidentsService {
       await lockRoomWithFreeBed(manager, roomId, clinicId);
       await manager.update(Resident, id, { clinicId, roomId });
     });
-    return ResidentResponseDto.fromEntity(await this.findOrThrow(id));
+    const linked = await this.findOrThrow(id);
+    await this.notifier.notify(
+      {
+        type: NotificationType.GENERAL,
+        title: 'Vínculo aceito',
+        message: `${linked.name} agora está na ${await this.clinicName(clinicId)}, quarto ${linked.roomNumber}.`,
+      },
+      { guardiansOf: id },
+    );
+    return ResidentResponseDto.fromEntity(linked);
   }
 
   async discharge(
@@ -156,6 +168,14 @@ export class ResidentsService {
     const resident = await this.findOrThrow(id);
     this.residentAccess.assertLinkedTo(resident, this.ownClinicId(currentUser));
     await this.residentRepository.update(id, { clinicId: null, roomId: null });
+    await this.notifier.notify(
+      {
+        type: NotificationType.GENERAL,
+        title: 'Alta registrada',
+        message: `A ${await this.clinicName(resident.clinicId!)} registrou a alta de ${resident.name}.`,
+      },
+      { guardiansOf: id },
+    );
     return ResidentResponseDto.fromEntity(await this.findOrThrow(id));
   }
 
@@ -275,6 +295,13 @@ export class ResidentsService {
       )`,
       { guardianId },
     );
+  }
+
+  private async clinicName(clinicId: string): Promise<string> {
+    const clinic = await this.dataSource.manager.findOneBy(Clinic, {
+      id: clinicId,
+    });
+    return clinic?.name ?? 'clínica';
   }
 
   private async findOrThrow(id: string): Promise<Resident> {
