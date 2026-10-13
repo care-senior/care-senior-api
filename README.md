@@ -22,8 +22,15 @@ O domínio gira em torno de uma clínica que cuida de idosos (`Resident`), cada 
 Um módulo por área de domínio, cada um com sua(s) entidade(s) em `entities/`:
 
 ```
+db/
+ ├── migrations/         # Schema real do Postgres: NNNN_descricao.sql, aplicados em ordem
+ └── seeds/              # Dados de desenvolvimento (clínica, equipe e responsável de exemplo)
 src/
+ ├── auth/               # Login, sessões (JWT), recuperação de senha e guards globais
+ ├── mail/               # Envio de e-mail via SMTP
+ ├── config/             # Validação das variáveis de ambiente
  ├── common/enums/       # Enums compartilhados entre entidades (ActivityType, StaffRole, ...)
+ ├── common/crypto/      # Criptografia de campos sensíveis (CPF)
  ├── clinics/
  ├── rooms/              # Sem equivalente no app mobile — só backend/web app
  ├── staff/
@@ -41,7 +48,7 @@ src/
  └── main.ts
 ```
 
-Cada entidade mapeia 1:1 com as tabelas descritas no [README do app mobile](../care_senior_study/README.md), que é a referência de produto por trás de todo esse modelo. A partir daqui, o padrão NestJS de sempre se aplica: cada módulo cresce com `*.service.ts`, `*.controller.ts` e DTOs conforme os casos de uso são implementados, sempre lendo/gravando através da entidade correspondente. Não há migrations geradas pelo ORM — o schema real do Postgres vem de scripts SQL versionados por fora do TypeORM (por isso `synchronize` fica sempre `false` em `app.module.ts`).
+Cada entidade mapeia 1:1 com as tabelas descritas no [README do app mobile](../care_senior_study/README.md), que é a referência de produto por trás de todo esse modelo. A partir daqui, o padrão NestJS de sempre se aplica: cada módulo cresce com `*.service.ts`, `*.controller.ts` e DTOs conforme os casos de uso são implementados, sempre lendo/gravando através da entidade correspondente. Não há migrations geradas pelo ORM — o schema real do Postgres vem dos scripts SQL em `db/migrations` (por isso `synchronize` fica sempre `false` em `app.module.ts`). Toda mudança de entidade vem acompanhada de um novo script `NNNN_descricao.sql`; scripts já aplicados nunca são editados. Os tipos enum do Postgres têm nome próprio (`staff_role`, `user_role`, ...) e as entidades apontam pra eles com `enumName`.
 
 ## Entidades
 
@@ -81,20 +88,25 @@ Coisas que não ficam óbvias só olhando os campos:
 | `UserFeedback.authorId`, `NotificationRecipient.userId` | FKs polimórficas (`StaffMember` ou `Guardian`, conforme `authorRole`/`userRole`) — sem relação direta possível no TypeORM, resolvidas na camada de aplicação.             |
 | `NotificationRecipient`                                 | Substitui o `audience` genérico do mock original: como leitura é por usuário, cada destinatário tem sua própria linha e seu próprio `readAt`.                             |
 | `StaffRole`                                             | Só `COORDINATOR`/`NURSE` (`ROLES_THAT_MANAGE_REQUESTS`) aprovam/recusam solicitações e desvinculam idosos — `CAREGIVER` não.                                              |
-| `StaffMember.cpf`, `Guardian.cpf`                       | Dados sensíveis — precisam ser criptografados em repouso antes de persistir.                                                                                              |
+| `StaffMember.cpf`, `Guardian.cpf`                       | Criptografados em repouso (AES-256-GCM, chave em `CPF_ENCRYPTION_KEY`) via transformer da coluna. Como cada gravação gera um texto cifrado diferente, não dá pra buscar nem impor unicidade por CPF no banco. |
+| `StaffMember.password`, `Guardian.password`             | Hash argon2id, `select: false` na entidade. Nulo enquanto a pessoa não definiu a senha (convite pendente) — essa conta não consegue logar.                                |
 
 ## Rodando localmente
 
-Tudo roda em Docker — API e Postgres.
+Tudo roda em Docker — API, Postgres e [Mailpit](https://mailpit.axllent.org/) (SMTP de desenvolvimento).
 
 ```bash
-cp .env.example .env
-docker compose up --build
+cp .env.example .env   # preencha os segredos (os comandos pra gerar estão no próprio arquivo)
+docker compose up --build -d
+docker compose run --rm api-dev npm run db:migrate
+docker compose run --rm api-dev npm run db:seed
 ```
+
+O seed cria a clínica "Residencial Vida Plena" com uma coordenadora (`coordenadora@caresenior.dev`), uma enfermeira (`enfermeira@caresenior.dev`), um cuidador (`cuidador@caresenior.dev`) e uma responsável (`responsavel@caresenior.dev`), todos com a senha `careSenior123`. Os e-mails enviados pela API (recuperação de senha) aparecem no Mailpit em `http://localhost:8025` — use `SMTP_HOST=mailpit` e `SMTP_PORT=1025` no `.env`.
 
 `DB_HOST` no `.env` aponta pro nome do serviço (`db`), não `localhost` — de dentro do container da API, `localhost` seria o próprio container.
 
-Documentação interativa da API (Swagger/OpenAPI, gerada automaticamente a partir dos DTOs) fica em `http://localhost:3000/api/docs`.
+Todas as rotas ficam sob `/api/v1`. Documentação interativa da API (Swagger/OpenAPI, gerada automaticamente a partir dos DTOs) fica em `http://localhost:3000/api/docs` e a spec em JSON em `http://localhost:3000/api/docs-json`.
 
 A imagem da `api` só tem dependências de produção; lint e testes rodam no serviço `api-dev`, que reaproveita o estágio de build com as devDependencies:
 
@@ -106,9 +118,9 @@ docker compose run --rm api-dev npm run test:e2e
 
 ## O que falta implementar
 
-Hoje só existem as entidades TypeORM — nenhum repositório, service, controller ou endpoint real ainda. O contrato de API abaixo é o mapeamento pra atender os dois clientes (mobile + web) sobre a mesma base de dados; "Cliente" na última coluna indica quem consome cada rota hoje, só pra saber o que quebra se o contrato mudar.
+Hoje existem as entidades TypeORM, o schema SQL e a autenticação (`/auth`); os demais domínios ainda não têm service, controller ou endpoint. O contrato de API abaixo é o mapeamento pra atender os dois clientes (mobile + web) sobre a mesma base de dados; "Cliente" na última coluna indica quem consome cada rota hoje, só pra saber o que quebra se o contrato mudar.
 
-Além dos endpoints, falta: autenticação (`JwtAuthGuard`, `RolesGuard`), scripts SQL versionados (schema real do banco), criptografia de `cpf` em `StaffMember`/`Guardian`.
+Além dos endpoints, falta o convite de quem é cadastrado pela equipe (`/auth/*/accept-invite`) e o autocadastro do responsável (`/auth/guardian/register`) — ambos entram junto com `POST /staff` e `POST /guardians`. A infraestrutura de token de uso único (`auth_tokens`, propósito `invite`) já existe.
 
 **Convenções gerais** (padrão NestJS):
 
@@ -118,20 +130,31 @@ Além dos endpoints, falta: autenticação (`JwtAuthGuard`, `RolesGuard`), scrip
 - Aninhamento de no máximo 1 nível, só quando o sub-recurso não existe sozinho fora do pai (`/residents/:id/guardians`); o resto é rota plana com filtro.
 - `PATCH` pra atualização parcial — nunca `PUT`.
 - Ação que não é CRUD puro (aprovar, iniciar, desvincular) vira sub-rota verbo no infinitivo: `POST /resource/:id/acao`.
-- Toda rota exige `JwtAuthGuard`, exceto `/auth/*`. Rotas restritas por cargo usam `@Roles(StaffRole.COORDINATOR, StaffRole.NURSE)` com um `RolesGuard` (ver `ROLES_THAT_MANAGE_REQUESTS`).
+- Toda rota exige o `JwtAuthGuard` (global) — rotas abertas são marcadas com `@Public()`. Restrição por tipo de usuário usa `@Roles(UserRole.STAFF)`; por cargo, `@StaffRoles(...ROLES_THAT_MANAGE_REQUESTS)`. O usuário logado chega no controller via `@CurrentUser()`.
 - Entrada/saída tipadas por DTO (`CreateXDto`, `UpdateXDto`, `XResponseDto`) com `class-validator`/`class-transformer`. O `XResponseDto` de `ActivityParticipant` **não inclui `registeredBy`** quando quem pediu é `guardian` — ver "Decisões de modelagem" acima.
 - Paginação padrão em toda lista (`?page=&limit=`).
 
 ### Auth
 
-| Método | Endpoint                       | Descrição                                                                        | Cliente | Observação                                     |
-| ------ | ------------------------------- | ---------------------------------------------------------------------------------- | ------- | ------------------------------------------------- |
-| POST   | `/auth/staff/login`            | Login de colaborador                                                             | Ambos   |                                                 |
-| POST   | `/auth/guardian/login`         | Login de responsável                                                             | Mobile  |                                                 |
-| POST   | `/auth/guardian/register`      | Autocadastro do responsável + idoso (2 passos consolidados)                      | Mobile  |                                                 |
-| POST   | `/auth/staff/accept-invite`    | Define a senha do colaborador recém-cadastrado (body: `token`, `password`)       | Web     | completa o `POST /staff` — ver nota abaixo     |
-| POST   | `/auth/guardian/accept-invite` | Define a senha do responsável cadastrado via walk-in (body: `token`, `password`) | Ambos   | completa o `POST /guardians` — ver nota abaixo |
-| POST   | `/auth/logout`                 | Invalida a sessão/token atual                                                    | Ambos   |                                                 |
+| Método | Endpoint                         | Descrição                                                                        | Cliente | Observação                                      |
+| ------ | -------------------------------- | -------------------------------------------------------------------------------- | ------- | ----------------------------------------------- |
+| POST   | `/auth/staff/login`              | Login de colaborador                                                             | Ambos   | ✅ implementado                                  |
+| POST   | `/auth/guardian/login`           | Login de responsável                                                             | Mobile  | ✅ implementado                                  |
+| POST   | `/auth/refresh`                  | Troca o refresh token por um novo par de tokens                                  | Ambos   | ✅ implementado                                  |
+| POST   | `/auth/logout`                   | Invalida a sessão do refresh token enviado                                       | Ambos   | ✅ implementado                                  |
+| GET    | `/auth/me`                       | Usuário logado (colaborador ou responsável)                                      | Ambos   | ✅ implementado                                  |
+| POST   | `/auth/staff/forgot-password`    | Envia por e-mail o link de redefinição de senha                                  | Ambos   | ✅ implementado — sempre `204`                   |
+| POST   | `/auth/guardian/forgot-password` | Idem, para responsável                                                           | Mobile  | ✅ implementado — sempre `204`                   |
+| POST   | `/auth/reset-password`           | Define a nova senha a partir do token do e-mail (body: `token`, `password`)      | Ambos   | ✅ implementado                                  |
+| POST   | `/auth/guardian/register`        | Autocadastro do responsável + idoso (2 passos consolidados)                      | Mobile  |                                                 |
+| POST   | `/auth/staff/accept-invite`      | Define a senha do colaborador recém-cadastrado (body: `token`, `password`)       | Web     | completa o `POST /staff` — ver nota abaixo      |
+| POST   | `/auth/guardian/accept-invite`   | Define a senha do responsável cadastrado via walk-in (body: `token`, `password`) | Ambos   | completa o `POST /guardians` — ver nota abaixo  |
+
+**Sessão:** o login devolve um access token JWT (`Authorization: Bearer`, 15 min por padrão) e um refresh token JWT (30 dias), ambos com o id da sessão (`auth_sessions`). Cada `POST /auth/refresh` gira o refresh token; reapresentar um refresh já usado derruba a sessão inteira (sinal de que o token vazou). `logout` e `reset-password` revogam sessões, mas um access token já emitido continua válido até expirar.
+
+**Web vs. mobile:** o mobile recebe o `refreshToken` no body e o devolve no body de `refresh`/`logout`. O web app envia o header `X-Client-Platform: web` e recebe o refresh token só num cookie `httpOnly`, `SameSite=Strict`, restrito a `/api/v1/auth` — as chamadas do web precisam de `credentials: 'include'`, e a origem dele precisa estar em `CORS_ORIGINS`.
+
+**Segurança:** senhas com argon2id (mínimo 8 caracteres); login, `forgot-password` e `reset-password` limitados a 5 tentativas por minuto por IP + e-mail; respostas de login e `forgot-password` não revelam se o e-mail existe. O link de redefinição (`PASSWORD_RESET_URL?token=...`) vale 1 hora, é de uso único e pedir outro invalida o anterior.
 
 > **De onde vem a senha de quem não se autocadastrou:** `POST /staff` e `POST /guardians` (cadastro pela equipe) criam o registro **sem senha** — o backend deve gerar um token de convite e disparar e-mail/SMS pra quem foi cadastrado definir a própria senha em `/auth/*/accept-invite`. Até lá, a conta existe mas não consegue logar.
 
