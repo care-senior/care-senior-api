@@ -5,6 +5,7 @@ import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { AuthModule } from './auth/auth.module.js';
 import { ClinicsModule } from './clinics/clinics.module.js';
+import { GuardiansModule } from './guardians/guardians.module.js';
 import { StaffModule } from './staff/staff.module.js';
 import { AuthSession } from './auth/entities/auth-session.entity.js';
 import { AuthToken } from './auth/entities/auth-token.entity.js';
@@ -64,6 +65,7 @@ const ENTITIES = [
     }),
     AuthModule,
     ClinicsModule,
+    GuardiansModule,
     StaffModule,
   ],
   controllers: [AppController],
