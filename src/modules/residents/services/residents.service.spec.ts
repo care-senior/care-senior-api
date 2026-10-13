@@ -12,6 +12,7 @@ import type { AuthenticatedUser } from '../../../common/types/authenticated-user
 import { Guardian } from '../../guardians/entities/guardian.entity.js';
 import { Room } from '../../rooms/entities/room.entity.js';
 import { Resident } from '../entities/resident.entity.js';
+import { ResidentAccessService } from './resident-access.service.js';
 import { ResidentsService } from './residents.service.js';
 
 function chainableQuery(result: Record<string, unknown> = {}) {
@@ -112,6 +113,7 @@ describe('ResidentsService', () => {
     const module = await Test.createTestingModule({
       providers: [
         ResidentsService,
+        ResidentAccessService,
         { provide: getRepositoryToken(Resident), useValue: residentRepository },
         { provide: getRepositoryToken(Guardian), useValue: guardianRepository },
         { provide: DataSource, useValue: dataSource },

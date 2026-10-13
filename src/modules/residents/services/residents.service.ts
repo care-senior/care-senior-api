@@ -33,6 +33,7 @@ import {
 } from '../dto/resident-response.dto.js';
 import type { UpdateResidentDto } from '../dto/update-resident.dto.js';
 import { Resident } from '../entities/resident.entity.js';
+import { ResidentAccessService } from './resident-access.service.js';
 
 @Injectable()
 export class ResidentsService {
@@ -43,6 +44,7 @@ export class ResidentsService {
     private readonly guardianRepository: Repository<Guardian>,
     private readonly dataSource: DataSource,
     private readonly invitations: InvitationsService,
+    private readonly residentAccess: ResidentAccessService,
   ) {}
 
   async findAll(
@@ -100,7 +102,7 @@ export class ResidentsService {
     currentUser: AuthenticatedUser,
   ): Promise<ResidentResponseDto> {
     const resident = await this.findOrThrow(id);
-    await this.assertCanView(resident, currentUser);
+    await this.residentAccess.assertCanView(resident, currentUser);
     return ResidentResponseDto.fromEntity(resident);
   }
 
@@ -110,7 +112,7 @@ export class ResidentsService {
     currentUser: AuthenticatedUser,
   ): Promise<ResidentResponseDto> {
     const resident = await this.findOrThrow(id);
-    await this.assertCanEditProfile(resident, currentUser);
+    await this.residentAccess.assertCanEditProfile(resident, currentUser);
     const saved = await this.residentRepository.save(
       this.residentRepository.merge(resident, dto),
     );
@@ -125,7 +127,13 @@ export class ResidentsService {
     const clinicId = this.ownClinicId(currentUser);
     await this.dataSource.transaction(async (manager) => {
       const resident = await this.lockResident(manager, id);
-      if (!(await this.hasPendingLinkRequest(id, clinicId, manager))) {
+      if (
+        !(await this.residentAccess.hasPendingLinkRequest(
+          id,
+          clinicId,
+          manager,
+        ))
+      ) {
         throw new ForbiddenException(
           'Resident has no pending link request for your clinic',
         );
@@ -146,7 +154,7 @@ export class ResidentsService {
     currentUser: AuthenticatedUser,
   ): Promise<ResidentResponseDto> {
     const resident = await this.findOrThrow(id);
-    this.assertLinkedTo(resident, this.ownClinicId(currentUser));
+    this.residentAccess.assertLinkedTo(resident, this.ownClinicId(currentUser));
     await this.residentRepository.update(id, { clinicId: null, roomId: null });
     return ResidentResponseDto.fromEntity(await this.findOrThrow(id));
   }
@@ -159,7 +167,7 @@ export class ResidentsService {
     const clinicId = this.ownClinicId(currentUser);
     await this.dataSource.transaction(async (manager) => {
       const resident = await this.lockResident(manager, id);
-      this.assertLinkedTo(resident, clinicId);
+      this.residentAccess.assertLinkedTo(resident, clinicId);
       if (resident.roomId === roomId) return;
       await lockRoomWithFreeBed(manager, roomId, clinicId);
       await manager.update(Resident, id, { roomId });
@@ -172,7 +180,10 @@ export class ResidentsService {
     query: PaginationQueryDto,
     currentUser: AuthenticatedUser,
   ): Promise<GuardianPageDto> {
-    await this.assertCanView(await this.findOrThrow(id), currentUser);
+    await this.residentAccess.assertCanView(
+      await this.findOrThrow(id),
+      currentUser,
+    );
     const result = await paginate(
       this.guardianRepository
         .createQueryBuilder('guardian')
@@ -197,7 +208,7 @@ export class ResidentsService {
     currentUser: AuthenticatedUser,
   ): Promise<GuardianResponseDto> {
     const resident = await this.findOrThrow(id);
-    this.assertLinkedTo(resident, this.ownClinicId(currentUser));
+    this.residentAccess.assertLinkedTo(resident, this.ownClinicId(currentUser));
 
     let guardian: Guardian;
     try {
@@ -226,7 +237,7 @@ export class ResidentsService {
     const clinicId = this.ownClinicId(currentUser);
     await this.dataSource.transaction(async (manager) => {
       const resident = await this.lockResident(manager, id);
-      this.assertLinkedTo(resident, clinicId);
+      this.residentAccess.assertLinkedTo(resident, clinicId);
       const guardians = await manager
         .getRepository(Guardian)
         .createQueryBuilder('guardian')
@@ -293,88 +304,6 @@ export class ResidentsService {
       throw new NotFoundException(`Resident ${id} not found`);
     }
     return resident;
-  }
-
-  // A clinic sees an unlinked resident once one of their guardians contacted
-  // it: that contact is the pending link request.
-  private async assertCanView(
-    resident: Resident,
-    currentUser: AuthenticatedUser,
-  ) {
-    if (currentUser.role === UserRole.GUARDIAN) {
-      await this.assertIsGuardianOf(resident.id, currentUser.id);
-      return;
-    }
-    const clinicId = this.ownClinicId(currentUser);
-    const isRelated =
-      resident.clinicId === clinicId ||
-      (!resident.clinicId &&
-        (await this.hasPendingLinkRequest(resident.id, clinicId)));
-    if (!isRelated) {
-      throw new ForbiddenException('Resident is not related to your clinic');
-    }
-  }
-
-  // The guardian fills in the profile until a clinic links the resident;
-  // from then on the clinic staff keeps it.
-  private async assertCanEditProfile(
-    resident: Resident,
-    currentUser: AuthenticatedUser,
-  ) {
-    if (currentUser.role === UserRole.GUARDIAN) {
-      await this.assertIsGuardianOf(resident.id, currentUser.id);
-      if (resident.clinicId) {
-        throw new ForbiddenException(
-          'The clinic keeps the profile of a linked resident',
-        );
-      }
-      return;
-    }
-    this.assertLinkedTo(resident, this.ownClinicId(currentUser));
-  }
-
-  private async assertIsGuardianOf(residentId: string, guardianId: string) {
-    const isGuardian = await this.guardianRepository
-      .createQueryBuilder('guardian')
-      .innerJoin(
-        'guardian.residents',
-        'resident',
-        'resident.id = :residentId',
-        {
-          residentId,
-        },
-      )
-      .where('guardian.id = :guardianId', { guardianId })
-      .getExists();
-    if (!isGuardian) {
-      throw new ForbiddenException('Resident belongs to another guardian');
-    }
-  }
-
-  private hasPendingLinkRequest(
-    residentId: string,
-    clinicId: string,
-    manager: EntityManager = this.guardianRepository.manager,
-  ): Promise<boolean> {
-    return manager
-      .getRepository(Guardian)
-      .createQueryBuilder('guardian')
-      .innerJoin(
-        'guardian.residents',
-        'resident',
-        'resident.id = :residentId',
-        {
-          residentId,
-        },
-      )
-      .where(':clinicId = ANY(guardian.contactedClinicIds)', { clinicId })
-      .getExists();
-  }
-
-  private assertLinkedTo(resident: Resident, clinicId: string) {
-    if (resident.clinicId !== clinicId) {
-      throw new ForbiddenException('Resident is not linked to your clinic');
-    }
   }
 
   private ownClinicId(currentUser: AuthenticatedUser): string {
