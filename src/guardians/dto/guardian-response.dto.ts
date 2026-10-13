@@ -1,3 +1,4 @@
+import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto.js';
 import { UserRole } from '../../common/enums/index.js';
 import type { AuthenticatedUser } from '../../common/types/authenticated-user.interface.js';
 import { maskCpf } from '../../common/utils/cpf.js';
@@ -41,3 +42,7 @@ export class GuardianResponseDto {
     return dto;
   }
 }
+
+export class GuardianPageDto extends PaginatedResponseDto(
+  GuardianResponseDto,
+) {}

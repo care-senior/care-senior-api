@@ -10,22 +10,23 @@ import {
 import { NormalizeEmail } from '../../auth/dto/email.transform.js';
 import { StaffRole } from '../../common/enums/index.js';
 import { IsCpf } from '../../common/validators/cpf.decorator.js';
+import { IsOptionalNotNull } from '../../common/validators/optional-not-null.decorator.js';
 
 export class UpdateStaffDto {
-  @IsOptional()
+  @IsOptionalNotNull()
   @IsString()
   @IsNotEmpty()
   @MaxLength(150)
   name?: string;
 
-  @IsOptional()
+  @IsOptionalNotNull()
   @NormalizeEmail()
   @IsEmail()
   @MaxLength(254)
   email?: string;
 
   @ApiPropertyOptional({ enum: StaffRole, enumName: 'StaffRole' })
-  @IsOptional()
+  @IsOptionalNotNull()
   @IsEnum(StaffRole)
   staffRole?: StaffRole;
 

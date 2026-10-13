@@ -32,19 +32,19 @@ export class Resident {
   @Column({ name: 'health_notes', type: 'text', nullable: true })
   healthNotes?: string | null;
 
-  @Column({ name: 'clinic_id', nullable: true })
-  clinicId?: string;
+  @Column({ name: 'clinic_id', type: 'uuid', nullable: true })
+  clinicId?: string | null;
 
   @ManyToOne(() => Clinic, (clinic) => clinic.residents, { nullable: true })
   @JoinColumn({ name: 'clinic_id' })
-  clinic?: Relation<Clinic>;
+  clinic?: Relation<Clinic> | null;
 
-  @Column({ name: 'room_id', nullable: true })
-  roomId?: string;
+  @Column({ name: 'room_id', type: 'uuid', nullable: true })
+  roomId?: string | null;
 
   @ManyToOne(() => Room, (room) => room.residents, { nullable: true })
   @JoinColumn({ name: 'room_id' })
-  room?: Relation<Room>;
+  room?: Relation<Room> | null;
 
   get roomNumber(): string | undefined {
     return this.room?.number;
@@ -56,19 +56,23 @@ export class Resident {
     enumName: 'resident_mood',
     nullable: true,
   })
-  mood?: ResidentMood;
+  mood?: ResidentMood | null;
 
   @Column({ type: 'text', nullable: true })
-  peculiarities?: string;
+  peculiarities?: string | null;
 
-  @Column({ name: 'photo_path', nullable: true })
-  photoPath?: string;
+  @Column({ name: 'photo_path', type: 'varchar', nullable: true })
+  photoPath?: string | null;
 
-  @Column({ name: 'emergency_contact_name', nullable: true })
-  emergencyContactName?: string;
+  @Column({ name: 'emergency_contact_name', type: 'varchar', nullable: true })
+  emergencyContactName?: string | null;
 
-  @Column({ name: 'emergency_contact_phone', nullable: true })
-  emergencyContactPhone?: string;
+  @Column({
+    name: 'emergency_contact_phone',
+    type: 'varchar',
+    nullable: true,
+  })
+  emergencyContactPhone?: string | null;
 
   @ManyToMany(() => Guardian, (guardian) => guardian.residents)
   guardians!: Relation<Guardian[]>;

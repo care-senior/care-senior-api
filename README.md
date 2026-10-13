@@ -77,7 +77,7 @@ Coisas que não ficam óbvias só olhando os campos:
 | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Clinic.activities` vs. `Clinic.scheduledActivities`    | O primeiro é texto livre dos serviços oferecidos; o segundo aponta pra agenda (`Activity`). Nomes diferentes de propósito.                                                |
 | `Room`, `Routine`                                       | Sem equivalente no app mobile — existem só pro backend/web app. O mobile continua vendo `Resident.roomNumber` como texto solto e nunca enxerga uma `Routine`.             |
-| `Resident.roomNumber`                                   | É um _getter_ (`room?.number`), não uma coluna — mantém o contrato do mobile sem duplicar o dado de `Resident.room`.                                                      |
+| `Resident.roomNumber`                                   | É um _getter_ (`room?.number`), não uma coluna — mantém o contrato do mobile sem duplicar o dado de `Resident.room`. Toda resposta de idoso traz `roomNumber` (nulo sem vínculo). |
 | `Resident.healthNotes`                                  | Opcional: o cadastro walk-in não pede anotações de saúde. Nulo até alguém preencher. |
 | `Resident.clinicId` / `roomId`                          | Nulos antes do primeiro vínculo e depois de uma desvinculação/alta. Histórico e responsáveis continuam existindo mesmo sem clínica.                                       |
 | `Guardian` ↔ `Resident`                                 | N:N de verdade (`guardian_resident`) — um responsável pode acompanhar idosos em clínicas diferentes, um idoso pode ter mais de um responsável.                            |
@@ -120,9 +120,9 @@ docker compose run --rm api-dev npm run test:e2e
 
 ## O que falta implementar
 
-Hoje existem as entidades TypeORM, o schema SQL e a autenticação (`/auth`); os demais domínios ainda não têm service, controller ou endpoint. O contrato de API abaixo é o mapeamento pra atender os dois clientes (mobile + web) sobre a mesma base de dados; "Cliente" na última coluna indica quem consome cada rota hoje, só pra saber o que quebra se o contrato mudar.
+Hoje existem as entidades TypeORM, o schema SQL, a autenticação (`/auth`) e os módulos de clinics, staff, guardians e residents — as rotas prontas estão marcadas com ✅ nas tabelas abaixo; os demais domínios ainda não têm service, controller ou endpoint. O contrato de API abaixo é o mapeamento pra atender os dois clientes (mobile + web) sobre a mesma base de dados; "Cliente" na última coluna indica quem consome cada rota hoje, só pra saber o que quebra se o contrato mudar.
 
-Além dos endpoints, falta o autocadastro do responsável (`/auth/guardian/register`), que entra junto com o módulo de residents, e os medicamentos informados no cadastro walk-in, que entram com o módulo de medications.
+Além dos endpoints, faltam os medicamentos informados no autocadastro e no cadastro walk-in, que entram com o módulo de medications, e o upload de fotos (`photoPath`).
 
 **Convenções gerais** (padrão NestJS):
 
@@ -130,7 +130,7 @@ Além dos endpoints, falta o autocadastro do responsável (`/auth/guardian/regis
 - Recursos no plural, kebab-case (`/outing-requests`, não `/outingRequest`).
 - `GET` de lista aceita filtro via query string (`?clinicId=`, `?residentId=`, `?status=`, `?from=&to=`) — nunca por segmento de rota além do primeiro nível de aninhamento.
 - Aninhamento de no máximo 1 nível, só quando o sub-recurso não existe sozinho fora do pai (`/residents/:id/guardians`); o resto é rota plana com filtro.
-- `PATCH` pra atualização parcial — nunca `PUT`.
+- `PATCH` pra atualização parcial — nunca `PUT`. Campo omitido mantém o valor; `null` limpa um campo opcional e é recusado (`400`) num campo obrigatório.
 - Ação que não é CRUD puro (aprovar, iniciar, desvincular) vira sub-rota verbo no infinitivo: `POST /resource/:id/acao`.
 - Toda rota exige o `JwtAuthGuard` (global) — rotas abertas são marcadas com `@Public()`. Rotas restritas por cargo usam `@Roles(...ROLES_THAT_MANAGE_REQUESTS)` (valores de `StaffRole`), checado pelo `RolesGuard`; sem `@Roles`, qualquer usuário autenticado passa e a checagem de propriedade fica no service. O usuário logado chega no controller via `@CurrentUser()` (`AuthenticatedUser`: `id`, `role`, `staffRole?`, `clinicId?`). Decorators, guards e esse tipo ficam em `src/common/`.
 - Entrada/saída tipadas por DTO (`CreateXDto`, `UpdateXDto`, `XResponseDto`) com `class-validator`/`class-transformer`. O `XResponseDto` de `ActivityParticipant` **não inclui `registeredBy`** quando quem pediu é `guardian` — ver "Decisões de modelagem" acima.
@@ -148,7 +148,7 @@ Além dos endpoints, falta o autocadastro do responsável (`/auth/guardian/regis
 | POST   | `/auth/staff/forgot-password`    | Envia por e-mail o link de redefinição de senha                                  | Ambos   | ✅ implementado — sempre `204`                   |
 | POST   | `/auth/guardian/forgot-password` | Idem, para responsável                                                           | Mobile  | ✅ implementado — sempre `204`                   |
 | POST   | `/auth/reset-password`           | Define a nova senha a partir do token do e-mail (body: `token`, `password`)      | Ambos   | ✅ implementado                                  |
-| POST   | `/auth/guardian/register`        | Autocadastro do responsável + idoso (2 passos consolidados)                      | Mobile  |                                                 |
+| POST   | `/auth/guardian/register`        | Autocadastro do responsável + idoso (2 passos consolidados)                      | Mobile  | ✅ implementado — idoso fica sem clínica; já devolve a sessão, como o login; `409` se o e-mail existir |
 | POST   | `/auth/staff/accept-invite`      | Define a senha do colaborador recém-cadastrado (body: `token`, `password`)       | Web     | ✅ implementado — completa o `POST /staff`; `204`, sem login automático |
 | POST   | `/auth/guardian/accept-invite`   | Define a senha do responsável cadastrado via walk-in (body: `token`, `password`) | Ambos   | ✅ implementado — completa o `POST /guardians`; `204` |
 
@@ -197,16 +197,18 @@ O responsável só vê o próprio cadastro. Um colaborador vê os responsáveis 
 
 ### Residents
 
+O responsável vê os próprios idosos, vinculados ou não. Um colaborador vê os idosos da clínica dele e, antes do vínculo, os idosos cujo responsável contatou a clínica (é a solicitação de vínculo). O perfil é do responsável até o vínculo e da equipe da clínica depois dele. Ocupar um leito (`link`, `change-room`) trava a linha do quarto e confere a capacidade na mesma transação (`409` com o quarto cheio).
+
 | Método | Endpoint                               | Descrição                                                           | Cliente | Observação                                       |
 | ------ | ----------------------------------------- | ------------------------------------------------------------------------ | ------- | ------------------------------------------------------ |
-| GET    | `/residents`                           | Lista (`?clinicId=`, `?guardianId=`)                                | Ambos   |                                                   |
-| GET    | `/residents/:id`                       | Detalhe                                                             | Ambos   |                                                   |
-| PATCH  | `/residents/:id`                       | Editar perfil (saúde, humor, peculiaridades, contato de emergência) | Ambos   | pré-vínculo (mobile) ou pós-vínculo (mobile/web) |
-| POST   | `/residents/:id/link`                  | Aceitar vínculo — preenche `clinicId`/`roomId`                      | Ambos   | fila de Solicitações de vínculo, `@Roles`        |
-| POST   | `/residents/:id/discharge`             | Desvincular/dar alta                                                | Ambos   | `@Roles(COORDINATOR, NURSE)`                     |
-| POST   | `/residents/:id/change-room`           | Trocar de quarto (`roomId` no body)                                 | Web     | tela "Quartos" / detalhe do idoso                |
-| GET    | `/residents/:id/guardians`             | Responsáveis do idoso                                               | Ambos   |                                                   |
-| POST   | `/residents/:id/guardians`             | Adicionar mais um responsável                                       | Ambos   | múltiplos responsáveis                           |
+| GET    | `/residents`                           | Lista (`?clinicId=`, `?guardianId=`, `?search=` por nome)           | Ambos   | ✅ implementado                                   |
+| GET    | `/residents/:id`                       | Detalhe                                                             | Ambos   | ✅ implementado                                   |
+| PATCH  | `/residents/:id`                       | Editar perfil (nome, idade, saúde, humor, peculiaridades, contato de emergência) | Ambos   | ✅ implementado — responsável só pré-vínculo; depois, qualquer colaborador da clínica; foto aguarda a definição de upload |
+| POST   | `/residents/:id/link`                  | Aceitar vínculo — preenche `clinicId`/`roomId` (`roomId` no body)   | Ambos   | ✅ implementado — `@Roles(COORDINATOR, NURSE)`; só com solicitação pendente pra clínica; `409` se já vinculado |
+| POST   | `/residents/:id/discharge`             | Desvincular/dar alta                                                | Ambos   | ✅ implementado — `@Roles(COORDINATOR, NURSE)`, só idoso da própria clínica |
+| POST   | `/residents/:id/change-room`           | Trocar de quarto (`roomId` no body)                                 | Web     | ✅ implementado — qualquer colaborador da clínica; quarto precisa ter leito livre |
+| GET    | `/residents/:id/guardians`             | Responsáveis do idoso, paginado                                     | Ambos   | ✅ implementado                                   |
+| POST   | `/residents/:id/guardians`             | Adicionar mais um responsável                                       | Ambos   | ✅ implementado — qualquer colaborador da clínica; cria a conta e envia o convite; `409` se o e-mail existir |
 | DELETE | `/residents/:id/guardians/:guardianId` | Remover um responsável específico                                   | —       | **planejado** — item em aberto, sem tela ainda   |
 
 ### Rooms

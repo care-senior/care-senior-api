@@ -5,37 +5,37 @@ import {
   IsLatitude,
   IsLongitude,
   IsNotEmpty,
-  IsOptional,
   IsString,
   MaxLength,
 } from 'class-validator';
+import { IsOptionalNotNull } from '../../common/validators/optional-not-null.decorator.js';
 
 export class UpdateClinicDto {
-  @IsOptional()
+  @IsOptionalNotNull()
   @IsString()
   @IsNotEmpty()
   @MaxLength(150)
   name?: string;
 
-  @IsOptional()
+  @IsOptionalNotNull()
   @IsString()
   @IsNotEmpty()
   @MaxLength(255)
   address?: string;
 
-  @IsOptional()
+  @IsOptionalNotNull()
   @IsString()
   @IsNotEmpty()
   @MaxLength(30)
   phone?: string;
 
-  @IsOptional()
+  @IsOptionalNotNull()
   @IsString()
   @IsNotEmpty()
   @MaxLength(150)
   operatingHours?: string;
 
-  @IsOptional()
+  @IsOptionalNotNull()
   @IsArray()
   @ArrayMaxSize(50)
   @ArrayUnique()
@@ -44,23 +44,23 @@ export class UpdateClinicDto {
   @MaxLength(100, { each: true })
   activities?: string[];
 
-  @IsOptional()
+  @IsOptionalNotNull()
   @IsString()
   @IsNotEmpty()
   @MaxLength(150)
   responsiblePeople?: string;
 
-  @IsOptional()
+  @IsOptionalNotNull()
   @IsString()
   @IsNotEmpty()
   @MaxLength(30)
   whatsappPhone?: string;
 
-  @IsOptional()
+  @IsOptionalNotNull()
   @IsLatitude()
   latitude?: number;
 
-  @IsOptional()
+  @IsOptionalNotNull()
   @IsLongitude()
   longitude?: number;
 }

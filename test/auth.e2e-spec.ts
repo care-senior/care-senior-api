@@ -1,9 +1,11 @@
+import { randomUUID } from 'node:crypto';
 import { JwtService } from '@nestjs/jwt';
 import request from 'supertest';
 import { StaffRole, UserRole } from '../src/common/enums/index.js';
 import {
   createTestApp,
   TEST_PASSWORD,
+  uniqueEmail,
   type TestApp,
 } from './support/test-app.js';
 
@@ -84,6 +86,68 @@ describe('Auth (e2e)', () => {
         await loginStaff(staff.email, 'wrong-password').expect(401);
       }
       await loginStaff(staff.email).expect(429);
+    });
+  });
+
+  describe('guardian register', () => {
+    const signup = (email: string, residentName = 'Benedito Nogueira') => ({
+      guardian: {
+        name: 'Camila Torres',
+        email,
+        cpf: '529.982.247-25',
+        password: 'my-own-password',
+      },
+      resident: { name: residentName, age: 79, mood: 'cheerful' },
+    });
+
+    it('creates the guardian with an unlinked resident and starts a session', async () => {
+      const email = uniqueEmail('signup');
+
+      const response = await http()
+        .post(`${AUTH}/guardian/register`)
+        .send(signup(email))
+        .expect(201);
+
+      expect(response.body).toMatchObject({
+        accessToken: expect.any(String),
+        refreshToken: expect.any(String),
+        user: { role: UserRole.GUARDIAN, email, name: 'Camila Torres' },
+      });
+      const residents = await http()
+        .get('/api/v1/residents')
+        .set('Authorization', `Bearer ${response.body.accessToken}`)
+        .expect(200);
+      expect(residents.body.data).toEqual([
+        expect.objectContaining({
+          name: 'Benedito Nogueira',
+          mood: 'cheerful',
+          clinicId: null,
+        }),
+      ]);
+      await http()
+        .post(`${AUTH}/guardian/login`)
+        .send({ email, password: 'my-own-password' })
+        .expect(200);
+    });
+
+    it('rejects a duplicated e-mail without leaving the resident behind, and a short password', async () => {
+      const email = uniqueEmail('signup');
+      const residentName = `Resident ${randomUUID()}`;
+      await testApp.createGuardian({ email });
+
+      await http()
+        .post(`${AUTH}/guardian/register`)
+        .send(signup(email, residentName))
+        .expect(409);
+      const [{ count }] = (await testApp.dataSource.query(
+        'SELECT count(*)::int AS count FROM residents WHERE name = $1',
+        [residentName],
+      )) as { count: number }[];
+      expect(count).toBe(0);
+
+      const body = signup(uniqueEmail('signup'));
+      body.guardian.password = 'short';
+      await http().post(`${AUTH}/guardian/register`).send(body).expect(400);
     });
   });
 

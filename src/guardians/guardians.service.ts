@@ -5,8 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { plainToInstance } from 'class-transformer';
-import { DataSource, type EntityManager, Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { InvitationsService } from '../auth/invitations.service.js';
 import { Clinic } from '../clinics/entities/clinic.entity.js';
 import { paginate } from '../common/dto/paginated-response.dto.js';
@@ -15,7 +14,7 @@ import type { AuthenticatedUser } from '../common/types/authenticated-user.inter
 import { isUniqueViolation } from '../common/utils/database-errors.js';
 import { ResidentResponseDto } from '../residents/dto/resident-response.dto.js';
 import { Resident } from '../residents/entities/resident.entity.js';
-import { Room } from '../rooms/entities/room.entity.js';
+import { lockRoomWithFreeBed } from '../rooms/room-occupancy.js';
 import type { ContactClinicQueryDto } from './dto/contact-clinic-query.dto.js';
 import type { CreateGuardianDto } from './dto/create-guardian.dto.js';
 import { GuardianResponseDto } from './dto/guardian-response.dto.js';
@@ -48,7 +47,7 @@ export class GuardiansService {
     await this.invitations.inviteGuardian(guardian);
     return {
       guardian: GuardianResponseDto.fromEntity(guardian, currentUser),
-      resident: this.toResidentResponse(resident),
+      resident: ResidentResponseDto.fromEntity(resident),
     };
   }
 
@@ -167,7 +166,7 @@ export class GuardiansService {
           .filter((resident) =>
             resident.guardians.some(({ id }) => id === guardian.id),
           )
-          .map((resident) => this.toResidentResponse(resident)),
+          .map((resident) => ResidentResponseDto.fromEntity(resident)),
       })),
     };
   }
@@ -175,9 +174,13 @@ export class GuardiansService {
   private async createWithResident(dto: CreateGuardianDto, clinicId: string) {
     try {
       return await this.dataSource.transaction(async (manager) => {
-        await this.assertRoomHasFreeBed(manager, dto.resident.roomId, clinicId);
+        const room = await lockRoomWithFreeBed(
+          manager,
+          dto.resident.roomId,
+          clinicId,
+        );
         const resident = await manager.save(
-          manager.create(Resident, { ...dto.resident, clinicId }),
+          manager.create(Resident, { ...dto.resident, clinicId, room }),
         );
         const guardian = await manager.save(
           manager.create(Guardian, {
@@ -193,31 +196,6 @@ export class GuardiansService {
         throw new ConflictException('E-mail already registered');
       }
       throw error;
-    }
-  }
-
-  // The room row stays locked until the transaction ends, so two concurrent
-  // walk-ins can't both take the last free bed.
-  private async assertRoomHasFreeBed(
-    manager: EntityManager,
-    roomId: string,
-    clinicId: string,
-  ) {
-    const room = await manager
-      .getRepository(Room)
-      .createQueryBuilder('room')
-      .setLock('pessimistic_write')
-      .where('room.id = :roomId', { roomId })
-      .getOne();
-    if (!room) {
-      throw new NotFoundException(`Room ${roomId} not found`);
-    }
-    if (room.clinicId !== clinicId) {
-      throw new ForbiddenException('Room belongs to another clinic');
-    }
-    const occupants = await manager.count(Resident, { where: { roomId } });
-    if (occupants >= room.capacity) {
-      throw new ConflictException(`Room ${room.number} is full`);
     }
   }
 
@@ -278,11 +256,5 @@ export class GuardiansService {
       throw new ForbiddenException('Only staff members can do this');
     }
     return currentUser.clinicId;
-  }
-
-  private toResidentResponse(resident: Resident): ResidentResponseDto {
-    return plainToInstance(ResidentResponseDto, resident, {
-      excludeExtraneousValues: true,
-    });
   }
 }

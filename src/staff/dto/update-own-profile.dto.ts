@@ -1,8 +1,9 @@
 import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 import { IsCpf } from '../../common/validators/cpf.decorator.js';
+import { IsOptionalNotNull } from '../../common/validators/optional-not-null.decorator.js';
 
 export class UpdateOwnProfileDto {
-  @IsOptional()
+  @IsOptionalNotNull()
   @IsString()
   @IsNotEmpty()
   @MaxLength(150)

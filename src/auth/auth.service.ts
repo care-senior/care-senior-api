@@ -14,6 +14,7 @@ import type { AcceptInviteDto } from './dto/accept-invite.dto.js';
 import type { AuthResponseDto } from './dto/auth-response.dto.js';
 import { AuthUserDto } from './dto/auth-user.dto.js';
 import type { LoginDto } from './dto/login.dto.js';
+import type { RegisterGuardianDto } from './dto/register-guardian.dto.js';
 import type { ResetPasswordDto } from './dto/reset-password.dto.js';
 import type { AuthSession } from './entities/auth-session.entity.js';
 import { JwtTokensService } from './jwt-tokens.service.js';
@@ -61,6 +62,21 @@ export class AuthService {
       this.jwtTokens.refreshTokenTtlMs,
     );
     return this.buildAuthResult(accountWithoutPassword, session);
+  }
+
+  async registerGuardian({
+    guardian,
+    resident,
+  }: RegisterGuardianDto): Promise<AuthResult> {
+    const account = await this.accounts.createGuardianWithResident(
+      { ...guardian, password: await this.passwords.hash(guardian.password) },
+      resident,
+    );
+    const session = await this.sessions.start(
+      account,
+      this.jwtTokens.refreshTokenTtlMs,
+    );
+    return this.buildAuthResult(account, session);
   }
 
   async refresh(refreshToken: string): Promise<AuthResult> {

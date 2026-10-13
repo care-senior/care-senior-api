@@ -162,6 +162,11 @@ describe('Clinics (e2e)', () => {
           'name should not be empty',
         ]),
       );
+      await http()
+        .patch(`${CLINICS}/${clinicId}`)
+        .set('Authorization', `Bearer ${tokens.nurse}`)
+        .send({ address: null })
+        .expect(400);
     });
   });
 });

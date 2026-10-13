@@ -19,6 +19,7 @@ describe('AuthService', () => {
     findByEmailWithPassword: vi.fn(),
     findById: vi.fn(),
     updatePassword: vi.fn(),
+    createGuardianWithResident: vi.fn(),
   };
   const passwords = { verify: vi.fn(), hash: vi.fn() };
   const jwtTokens = {
@@ -66,6 +67,47 @@ describe('AuthService', () => {
       ],
     }).compile();
     service = module.get(AuthService);
+  });
+
+  describe('registerGuardian', () => {
+    it('stores only the password hash and starts a session for the new guardian', async () => {
+      const guardian = {
+        id: 'guardian-1',
+        role: UserRole.GUARDIAN,
+        name: 'Camila Torres',
+        email: 'camila@familia.com',
+      };
+      passwords.hash.mockResolvedValue('$argon2id$hash');
+      accounts.createGuardianWithResident.mockResolvedValue(guardian);
+      sessions.start.mockResolvedValue({ id: 'session-1' });
+      jwtTokens.signAccessToken.mockResolvedValue({
+        accessToken: 'access',
+        expiresIn: 900,
+      });
+      jwtTokens.signRefreshToken.mockResolvedValue('refresh');
+      const resident = { name: 'Benedito Nogueira', age: 79 };
+
+      const result = await service.registerGuardian({
+        guardian: {
+          name: guardian.name,
+          email: guardian.email,
+          cpf: '52998224725',
+          password: 'my-own-password',
+        },
+        resident,
+      });
+
+      expect(accounts.createGuardianWithResident).toHaveBeenCalledWith(
+        expect.objectContaining({ password: '$argon2id$hash' }),
+        resident,
+      );
+      expect(sessions.start).toHaveBeenCalledWith(guardian, 1_000);
+      expect(result).toMatchObject({
+        accessToken: 'access',
+        refreshToken: 'refresh',
+        user: { id: 'guardian-1', role: UserRole.GUARDIAN },
+      });
+    });
   });
 
   describe('login', () => {

@@ -235,6 +235,14 @@ describe('Staff (e2e)', () => {
         .send({ staffRole: StaffRole.COORDINATOR })
         .expect(400);
     });
+
+    it('rejects null on required fields', async () => {
+      await http()
+        .patch(`${STAFF}/me`)
+        .set('Authorization', as(caregiver, StaffRole.CAREGIVER))
+        .send({ name: null })
+        .expect(400);
+    });
   });
 
   describe('GET and PATCH /staff/:id', () => {

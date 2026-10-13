@@ -29,7 +29,7 @@ export class JwtAuthGuard implements CanActivate {
       .getRequest<Request & { user?: AuthenticatedUser }>();
     const [scheme, token] = request.headers.authorization?.split(' ') ?? [];
     if (scheme !== 'Bearer' || !token) {
-      throw new UnauthorizedException('Token de acesso ausente');
+      throw new UnauthorizedException('Missing access token');
     }
 
     request.user = await this.jwtTokens.verifyAccessToken(token);
