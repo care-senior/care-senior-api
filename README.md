@@ -78,6 +78,7 @@ Coisas que não ficam óbvias só olhando os campos:
 | `Clinic.activities` vs. `Clinic.scheduledActivities`    | O primeiro é texto livre dos serviços oferecidos; o segundo aponta pra agenda (`Activity`). Nomes diferentes de propósito.                                                |
 | `Room`, `Routine`                                       | Sem equivalente no app mobile — existem só pro backend/web app. O mobile continua vendo `Resident.roomNumber` como texto solto e nunca enxerga uma `Routine`.             |
 | `Resident.roomNumber`                                   | É um _getter_ (`room?.number`), não uma coluna — mantém o contrato do mobile sem duplicar o dado de `Resident.room`.                                                      |
+| `Resident.healthNotes`                                  | Opcional: o cadastro walk-in não pede anotações de saúde. Nulo até alguém preencher. |
 | `Resident.clinicId` / `roomId`                          | Nulos antes do primeiro vínculo e depois de uma desvinculação/alta. Histórico e responsáveis continuam existindo mesmo sem clínica.                                       |
 | `Guardian` ↔ `Resident`                                 | N:N de verdade (`guardian_resident`) — um responsável pode acompanhar idosos em clínicas diferentes, um idoso pode ter mais de um responsável.                            |
 | `Activity` → `Resident`                                 | Não existe FK direto — a relação passa por `ActivityParticipant`, que carrega o status individual de cada idoso na atividade.                                             |
@@ -121,7 +122,7 @@ docker compose run --rm api-dev npm run test:e2e
 
 Hoje existem as entidades TypeORM, o schema SQL e a autenticação (`/auth`); os demais domínios ainda não têm service, controller ou endpoint. O contrato de API abaixo é o mapeamento pra atender os dois clientes (mobile + web) sobre a mesma base de dados; "Cliente" na última coluna indica quem consome cada rota hoje, só pra saber o que quebra se o contrato mudar.
 
-Além dos endpoints, falta o convite do responsável cadastrado pela equipe (`/auth/guardian/accept-invite`) e o autocadastro do responsável (`/auth/guardian/register`) — ambos entram junto com `POST /guardians`. O convite de colaborador já existe e serve de modelo (`InvitationsService`).
+Além dos endpoints, falta o autocadastro do responsável (`/auth/guardian/register`), que entra junto com o módulo de residents, e os medicamentos informados no cadastro walk-in, que entram com o módulo de medications.
 
 **Convenções gerais** (padrão NestJS):
 
@@ -149,7 +150,7 @@ Além dos endpoints, falta o convite do responsável cadastrado pela equipe (`/a
 | POST   | `/auth/reset-password`           | Define a nova senha a partir do token do e-mail (body: `token`, `password`)      | Ambos   | ✅ implementado                                  |
 | POST   | `/auth/guardian/register`        | Autocadastro do responsável + idoso (2 passos consolidados)                      | Mobile  |                                                 |
 | POST   | `/auth/staff/accept-invite`      | Define a senha do colaborador recém-cadastrado (body: `token`, `password`)       | Web     | ✅ implementado — completa o `POST /staff`; `204`, sem login automático |
-| POST   | `/auth/guardian/accept-invite`   | Define a senha do responsável cadastrado via walk-in (body: `token`, `password`) | Ambos   | completa o `POST /guardians` — ver nota abaixo  |
+| POST   | `/auth/guardian/accept-invite`   | Define a senha do responsável cadastrado via walk-in (body: `token`, `password`) | Ambos   | ✅ implementado — completa o `POST /guardians`; `204` |
 
 **Sessão:** o login devolve um access token JWT (`Authorization: Bearer`, 15 min por padrão, assinado com `JWT_SECRET`, payload `{ sub, role, staffRole?, clinicId? }`) e um refresh token JWT (30 dias, assinado com `JWT_REFRESH_SECRET`) ligado a uma linha de `auth_sessions`. Cada `POST /auth/refresh` gira o refresh token; reapresentar um refresh já usado derruba a sessão inteira (sinal de que o token vazou). `logout` e `reset-password` revogam sessões, mas um access token já emitido continua válido até expirar.
 
@@ -157,7 +158,7 @@ Além dos endpoints, falta o convite do responsável cadastrado pela equipe (`/a
 
 **Segurança:** senhas com argon2id (mínimo 8 caracteres); login, `forgot-password` e `reset-password` limitados a 5 tentativas por minuto por IP + e-mail; respostas de login e `forgot-password` não revelam se o e-mail existe. O link de redefinição (`PASSWORD_RESET_URL?token=...`) vale 1 hora, é de uso único e pedir outro invalida o anterior.
 
-> **De onde vem a senha de quem não se autocadastrou:** `POST /staff` e `POST /guardians` (cadastro pela equipe) criam o registro **sem senha** e enviam por e-mail um link de convite (`STAFF_INVITE_URL?token=...`, válido por 72 horas) pra pessoa definir a própria senha em `/auth/*/accept-invite`. Até lá, a conta existe mas não consegue logar. Se o link expirar ou o e-mail não chegar, "Esqueci minha senha" funciona também pra conta sem senha e serve de reenvio.
+> **De onde vem a senha de quem não se autocadastrou:** `POST /staff` e `POST /guardians` (cadastro pela equipe) criam o registro **sem senha** e enviam por e-mail um link de convite (`STAFF_INVITE_URL?token=...` ou `GUARDIAN_INVITE_URL?token=...`, válido por 72 horas) pra pessoa definir a própria senha em `/auth/*/accept-invite`. Até lá, a conta existe mas não consegue logar. Se o link expirar ou o e-mail não chegar, "Esqueci minha senha" funciona também pra conta sem senha e serve de reenvio.
 
 ### Clinics
 
@@ -183,14 +184,16 @@ Toda rota de staff é restrita a colaboradores e à clínica de quem chama. Coor
 
 ### Guardians
 
-| Método | Endpoint                           | Descrição                                    | Cliente | Observação                              |
-| ------ | ------------------------------------ | ----------------------------------------------- | ------- | ------------------------------------------- |
-| POST   | `/guardians`                       | Cadastro walk-in (responsável + idoso)       | Ambos   |                                          |
-| GET    | `/guardians/:id`                   | Detalhe                                      | Ambos   |                                          |
-| PATCH  | `/guardians/me`                    | Editar o próprio perfil                      | Mobile  |                                          |
-| PATCH  | `/guardians/:id`                   | Editar responsável (uso administrativo)      | Web     |                                          |
-| POST   | `/guardians/:id/contact-clinic`    | Marcar clínica como contatada (`?clinicId=`) | Mobile  | busca de clínicas pré-vínculo           |
-| GET    | `/guardians/pending-link-requests` | Fila de vínculo pendente (`?clinicId=`)      | Ambos   | `PendingLinkRequest` — não é persistida |
+O responsável só vê o próprio cadastro. Um colaborador vê os responsáveis que têm a ver com a clínica dele — algum idoso vinculado a ela, ou que contataram a clínica na busca — e nunca vê `contactedClinicIds` (uma clínica não sabe quais outras a família procurou).
+
+| Método | Endpoint                           | Descrição                                                         | Cliente | Observação                                                                                  |
+| ------ | ---------------------------------- | ----------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------- |
+| POST   | `/guardians`                       | Cadastro walk-in (responsável + idoso num quarto da clínica)      | Ambos   | ✅ implementado — qualquer colaborador; quarto precisa ter leito livre; envia o convite       |
+| GET    | `/guardians/:id`                   | Detalhe                                                           | Ambos   | ✅ implementado                                                                              |
+| PATCH  | `/guardians/me`                    | Editar o próprio perfil (nome, cpf)                               | Mobile  | ✅ implementado — foto aguarda a definição de upload                                         |
+| PATCH  | `/guardians/:id`                   | Editar responsável (nome, e-mail, cpf — uso administrativo)       | Web     | ✅ implementado — qualquer colaborador da clínica relacionada                                |
+| POST   | `/guardians/:id/contact-clinic`    | Marcar clínica como contatada (`?clinicId=`)                      | Mobile  | ✅ implementado — só o próprio responsável; idempotente                                      |
+| GET    | `/guardians/pending-link-requests` | Fila de vínculo pendente (`?clinicId=`), paginada por responsável | Ambos   | ✅ implementado — `@Roles(COORDINATOR, NURSE)`; `PendingLinkRequest` não é persistida        |
 
 ### Residents
 
