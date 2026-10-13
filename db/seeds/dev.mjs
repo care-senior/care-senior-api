@@ -11,6 +11,9 @@ const RESIDENT_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0301';
 const GUARDIAN_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0401';
 const PENDING_GUARDIAN_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0402';
 const PENDING_RESIDENT_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0302';
+const BREAKFAST_ACTIVITY_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0501';
+const PHYSIOTHERAPY_ACTIVITY_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0502';
+const CAREGIVER_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0203';
 
 const STAFF = [
   [
@@ -25,13 +28,16 @@ const STAFF = [
     'enfermeira@caresenior.dev',
     'nurse',
   ],
-  [
-    '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0203',
-    'Bruno Kanashiro',
-    'cuidador@caresenior.dev',
-    'caregiver',
-  ],
+  [CAREGIVER_ID, 'Bruno Kanashiro', 'cuidador@caresenior.dev', 'caregiver'],
 ];
+
+// Brasília time, so the sample agenda always lands on the day the seed runs.
+function todayAt(time) {
+  const today = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+  }).format(new Date());
+  return `${today}T${time}:00-03:00`;
+}
 
 export default async function seed(client) {
   const password = await argon2.hash(DEV_PASSWORD, { type: argon2.argon2id });
@@ -106,5 +112,34 @@ export default async function seed(client) {
     `INSERT INTO guardian_resident (guardian_id, resident_id) VALUES ($1, $2)
      ON CONFLICT DO NOTHING`,
     [PENDING_GUARDIAN_ID, PENDING_RESIDENT_ID],
+  );
+
+  await client.query(
+    `INSERT INTO activities (id, clinic_id, type, title, scheduled_time, detail) VALUES
+       ($1, $3, 'meal', 'Café da manhã', $4, NULL),
+       ($2, $3, 'physicalActivity', 'Fisioterapia', $5, 'Alongamento e caminhada assistida')
+     ON CONFLICT (id) DO UPDATE SET scheduled_time = EXCLUDED.scheduled_time`,
+    [
+      BREAKFAST_ACTIVITY_ID,
+      PHYSIOTHERAPY_ACTIVITY_ID,
+      CLINIC_ID,
+      todayAt('08:00'),
+      todayAt('15:00'),
+    ],
+  );
+
+  await client.query(
+    `INSERT INTO activity_participants (activity_id, resident_id, status,
+       status_changed_at, registered_by_staff_id, rating, comment) VALUES
+       ($1, $3, 'completed', $4, $5, 5, 'Comeu bem e conversou bastante'),
+       ($2, $3, 'pending', NULL, NULL, NULL, NULL)
+     ON CONFLICT (activity_id, resident_id) DO NOTHING`,
+    [
+      BREAKFAST_ACTIVITY_ID,
+      PHYSIOTHERAPY_ACTIVITY_ID,
+      RESIDENT_ID,
+      todayAt('08:20'),
+      CAREGIVER_ID,
+    ],
   );
 }

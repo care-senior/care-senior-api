@@ -37,7 +37,7 @@ export class Activity {
   scheduledTime!: Date;
 
   @Column({ type: 'text', nullable: true })
-  detail?: string;
+  detail?: string | null;
 
   @Column({ name: 'photo_path', nullable: true })
   photoPath?: string;

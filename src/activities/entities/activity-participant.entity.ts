@@ -45,21 +45,21 @@ export class ActivityParticipant {
   status!: ActivityStatus;
 
   @Column({ name: 'status_changed_at', type: 'timestamptz', nullable: true })
-  statusChangedAt?: Date;
+  statusChangedAt?: Date | null;
 
   @Column({ type: 'text', nullable: true })
-  notes?: string;
+  notes?: string | null;
 
-  @Column({ name: 'registered_by_staff_id', nullable: true })
-  registeredByStaffId?: string;
+  @Column({ name: 'registered_by_staff_id', type: 'uuid', nullable: true })
+  registeredByStaffId?: string | null;
 
   @ManyToOne(() => StaffMember, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'registered_by_staff_id' })
-  registeredBy?: Relation<StaffMember>;
+  registeredBy?: Relation<StaffMember> | null;
 
   @Column({ type: 'int', nullable: true })
-  rating?: number;
+  rating?: number | null;
 
   @Column({ type: 'text', nullable: true })
-  comment?: string;
+  comment?: string | null;
 }

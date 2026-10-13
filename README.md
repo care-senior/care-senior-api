@@ -104,7 +104,7 @@ docker compose run --rm api-dev npm run db:migrate
 docker compose run --rm api-dev npm run db:seed
 ```
 
-O seed cria a clínica "Residencial Vida Plena" com uma coordenadora (`coordenadora@caresenior.dev`), uma enfermeira (`enfermeira@caresenior.dev`), um cuidador (`cuidador@caresenior.dev`) e uma responsável (`responsavel@caresenior.dev`), todos com a senha `careSenior123`. Os e-mails enviados pela API (recuperação de senha) aparecem no Mailpit em `http://localhost:8025` — use `SMTP_HOST=mailpit` e `SMTP_PORT=1025` no `.env`.
+O seed cria a clínica "Residencial Vida Plena" com uma coordenadora (`coordenadora@caresenior.dev`), uma enfermeira (`enfermeira@caresenior.dev`), um cuidador (`cuidador@caresenior.dev`) e uma responsável (`responsavel@caresenior.dev`), todos com a senha `careSenior123`, além de duas atividades de hoje da idosa Maria (uma concluída, outra pendente) e de uma solicitação de vínculo pendente (`vinculo-pendente@caresenior.dev`). Os e-mails enviados pela API (recuperação de senha) aparecem no Mailpit em `http://localhost:8025` — use `SMTP_HOST=mailpit` e `SMTP_PORT=1025` no `.env`.
 
 `DB_HOST` no `.env` aponta pro nome do serviço (`db`), não `localhost` — de dentro do container da API, `localhost` seria o próprio container.
 
@@ -120,7 +120,7 @@ docker compose run --rm api-dev npm run test:e2e
 
 ## O que falta implementar
 
-Hoje existem as entidades TypeORM, o schema SQL, a autenticação (`/auth`) e os módulos de clinics, staff, guardians, residents e rooms — as rotas prontas estão marcadas com ✅ nas tabelas abaixo; os demais domínios ainda não têm service, controller ou endpoint. O contrato de API abaixo é o mapeamento pra atender os dois clientes (mobile + web) sobre a mesma base de dados; "Cliente" na última coluna indica quem consome cada rota hoje, só pra saber o que quebra se o contrato mudar.
+Hoje existem as entidades TypeORM, o schema SQL, a autenticação (`/auth`) e os módulos de clinics, staff, guardians, residents, rooms e activities — as rotas prontas estão marcadas com ✅ nas tabelas abaixo; os demais domínios ainda não têm service, controller ou endpoint. O contrato de API abaixo é o mapeamento pra atender os dois clientes (mobile + web) sobre a mesma base de dados; "Cliente" na última coluna indica quem consome cada rota hoje, só pra saber o que quebra se o contrato mudar.
 
 Além dos endpoints, faltam os medicamentos informados no autocadastro e no cadastro walk-in, que entram com o módulo de medications, e o upload de fotos (`photoPath`).
 
@@ -135,6 +135,7 @@ Além dos endpoints, faltam os medicamentos informados no autocadastro e no cada
 - Toda rota exige o `JwtAuthGuard` (global) — rotas abertas são marcadas com `@Public()`. Rotas restritas por cargo usam `@Roles(...ROLES_THAT_MANAGE_REQUESTS)` (valores de `StaffRole`), checado pelo `RolesGuard`; sem `@Roles`, qualquer usuário autenticado passa e a checagem de propriedade fica no service. O usuário logado chega no controller via `@CurrentUser()` (`AuthenticatedUser`: `id`, `role`, `staffRole?`, `clinicId?`). Decorators, guards e esse tipo ficam em `src/common/`.
 - Entrada/saída tipadas por DTO (`CreateXDto`, `UpdateXDto`, `XResponseDto`) com `class-validator`/`class-transformer`. O `XResponseDto` de `ActivityParticipant` **não inclui `registeredBy`** quando quem pediu é `guardian` — ver "Decisões de modelagem" acima.
 - Paginação padrão em toda lista (`?page=&limit=`).
+- Data-hora de entrada (`scheduledTime`, `?from=&to=`) em ISO 8601 **com fuso** (`Z` ou `±hh:mm`, ex.: `2026-10-13T10:00:00-03:00`) — sem fuso é `400`, pra o horário nunca depender do fuso do servidor. As respostas vêm em UTC.
 
 ### Auth
 
@@ -225,17 +226,21 @@ Só colaboradores, e só os quartos da própria clínica. Cada quarto vem com os
 
 ### Activities
 
+Uma atividade é da clínica e compartilhada por um ou mais idosos (`participants`), cada um com o próprio status. Qualquer colaborador da clínica agenda, edita e registra o andamento. O responsável vê só as atividades dos próprios idosos e, dentro delas, só os participantes que são idosos dele — nunca a nota, o comentário ou o motivo de pulo do idoso de outra família, nem quem da equipe registrou (`registeredBy`). Toda mudança numa atividade trava a linha dela, então uma edição nunca entra depois de um participante ter começado.
+
+Status de participante: `pending` → `inProgress` (opcional, via `start-all`) → `completed` ou `skipped`, uma vez só (`409` se já tiver desfecho). `late` não é gravado: a resposta mostra `late` pra um participante ainda `pending` cujo horário já passou. `cancelled` ainda não tem rota.
+
 | Método | Endpoint                                            | Descrição                                                     | Cliente | Observação          |
-| ------ | ------------------------------------------------------ | ------------------------------------------------------------------ | ------- | ---------------------- |
-| GET    | `/activities`                                       | Lista (`?clinicId=`, `?residentId=`, `?from=&to=`)            | Ambos   |                     |
-| POST   | `/activities`                                       | Agendar atividade (um ou mais idosos)                         | Ambos   |                     |
-| GET    | `/activities/:id`                                   | Detalhe + participantes                                       | Ambos   |                     |
-| PATCH  | `/activities/:id`                                   | Editar atividade ainda não iniciada                           | Ambos   |                     |
-| POST   | `/activities/:id/start-all`                         | Inicia todos os participantes ainda não iniciados             | Mobile  |                     |
-| POST   | `/activities/:id/participants/:residentId/complete` | Concluir participante (body: `rating`, `comment`)             | Mobile  |                     |
-| POST   | `/activities/:id/participants/:residentId/skip`     | Pular participante (body: `reason`)                           | Mobile  |                     |
-| POST   | `/activities/:id/complete-batch`                    | Concluir em lote (body: `residentIds[]`, `rating`, `comment`) | Mobile  | "Selecionar vários" |
-| POST   | `/activities/:id/skip-batch`                        | Pular em lote (body: `residentIds[]`, `reason`)               | Mobile  |                     |
+| ------ | --------------------------------------------------- | ------------------------------------------------------------- | ------- | ------------------- |
+| GET    | `/activities`                                       | Lista (`?clinicId=`, `?residentId=`, `?from=&to=`), por horário | Ambos   | ✅ implementado     |
+| POST   | `/activities`                                       | Agendar atividade (um ou mais idosos)                         | Ambos   | ✅ implementado — só idosos da própria clínica; foto e medicamento ainda não |
+| GET    | `/activities/:id`                                   | Detalhe + participantes                                       | Ambos   | ✅ implementado     |
+| PATCH  | `/activities/:id`                                   | Editar atividade ainda não iniciada (inclusive participantes) | Ambos   | ✅ implementado — `409` depois que algum participante saiu de `pending` |
+| POST   | `/activities/:id/start-all`                         | Inicia todos os participantes ainda não iniciados             | Mobile  | ✅ implementado     |
+| POST   | `/activities/:id/participants/:residentId/complete` | Concluir participante (body: `rating`, `comment`)             | Mobile  | ✅ implementado — `rating` de 1 a 5, os dois opcionais |
+| POST   | `/activities/:id/participants/:residentId/skip`     | Pular participante (body: `reason`)                           | Mobile  | ✅ implementado — `reason` obrigatório, visível ao responsável |
+| POST   | `/activities/:id/complete-batch`                    | Concluir em lote (body: `residentIds[]`, `rating`, `comment`) | Mobile  | ✅ implementado — "Selecionar vários"; tudo ou nada |
+| POST   | `/activities/:id/skip-batch`                        | Pular em lote (body: `residentIds[]`, `reason`)               | Mobile  | ✅ implementado — tudo ou nada |
 
 ### Routines
 
