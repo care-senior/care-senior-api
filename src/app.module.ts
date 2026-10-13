@@ -6,6 +6,7 @@ import { AppController } from './app.controller.js';
 import { ActivitiesModule } from './modules/activities/activities.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { ClinicsModule } from './modules/clinics/clinics.module.js';
+import { FeedbackModule } from './modules/feedback/feedback.module.js';
 import { GuardiansModule } from './modules/guardians/guardians.module.js';
 import { HealthRecordsModule } from './modules/health-records/health-records.module.js';
 import { MedicationsModule } from './modules/medications/medications.module.js';
@@ -81,6 +82,7 @@ const ENTITIES = [
     HealthRecordsModule,
     MedicationsModule,
     MessagesModule,
+    FeedbackModule,
     NotificationsModule,
     OutingRequestsModule,
     ResidentsModule,

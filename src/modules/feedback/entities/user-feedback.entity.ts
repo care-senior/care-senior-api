@@ -31,6 +31,10 @@ export class UserFeedback {
   @Column({ type: 'text' })
   message!: string;
 
+  /** Clinics of the author when it was sent; each one sees the feedback. */
+  @Column({ name: 'clinic_ids', type: 'uuid', array: true, default: '{}' })
+  clinicIds!: string[];
+
   @CreateDateColumn({ name: 'sent_at', type: 'timestamptz' })
   sentAt!: Date;
 }
