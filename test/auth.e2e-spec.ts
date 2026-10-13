@@ -28,7 +28,7 @@ describe('Auth (e2e)', () => {
   describe('login', () => {
     it('returns tokens and the staff profile', async () => {
       const staff = await testApp.createStaffMember({
-        role: StaffRole.COORDINATOR,
+        staffRole: StaffRole.COORDINATOR,
       });
 
       const response = await loginStaff(staff.email.toUpperCase()).expect(200);
@@ -101,7 +101,9 @@ describe('Auth (e2e)', () => {
     });
 
     it('accepts a token signed with JWT_SECRET as described in the guide', async () => {
-      const staff = await testApp.createStaffMember({ role: StaffRole.NURSE });
+      const staff = await testApp.createStaffMember({
+        staffRole: StaffRole.NURSE,
+      });
       const token = new JwtService({ secret: process.env.JWT_SECRET }).sign({
         sub: staff.id,
         role: UserRole.STAFF,

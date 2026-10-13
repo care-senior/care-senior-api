@@ -18,7 +18,7 @@ export interface TestApp {
   createClinic(): Promise<string>;
   createStaffMember(options?: {
     clinicId?: string;
-    role?: StaffRole;
+    staffRole?: StaffRole;
     password?: string | null;
   }): Promise<{ id: string; email: string }>;
   createGuardian(options?: {
@@ -75,16 +75,16 @@ export async function createTestApp(): Promise<TestApp> {
 
     async createStaffMember({
       clinicId,
-      role = StaffRole.NURSE,
+      staffRole = StaffRole.NURSE,
       password,
     } = {}) {
       const email = uniqueEmail('staff');
       const [staff] = (await dataSource.query(
-        `INSERT INTO staff_members (name, email, role, clinic_id, password)
+        `INSERT INTO staff_members (name, email, staff_role, clinic_id, password)
          VALUES ('E2E Staff', $1, $2, $3, $4) RETURNING id`,
         [
           email,
-          role,
+          staffRole,
           clinicId ?? (await createClinic()),
           await hashFor(password),
         ],

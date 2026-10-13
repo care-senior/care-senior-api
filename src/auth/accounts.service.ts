@@ -59,7 +59,7 @@ export class AccountsService {
   private accountQuery(role: UserRole): SelectQueryBuilder<AccountEntity> {
     const columns =
       role === UserRole.STAFF
-        ? ['id', 'name', 'email', 'photoPath', 'role', 'clinicId']
+        ? ['id', 'name', 'email', 'photoPath', 'staffRole', 'clinicId']
         : ['id', 'name', 'email', 'photoPath'];
     return (this.repositoryFor(role) as Repository<AccountEntity>)
       .createQueryBuilder('account')
@@ -79,7 +79,7 @@ export class AccountsService {
       photoPath: entity.photoPath ?? null,
     };
     if (entity instanceof StaffMember) {
-      account.staffRole = entity.role;
+      account.staffRole = entity.staffRole;
       account.clinicId = entity.clinicId;
     }
     return account;
