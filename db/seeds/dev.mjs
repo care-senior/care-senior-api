@@ -15,19 +15,19 @@ const STAFF = [
     '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0201',
     'Renata Alencar',
     'coordenadora@caresenior.dev',
-    'Coordenadora',
+    'coordinator',
   ],
   [
     '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0202',
     'Juliana Martins',
     'enfermeira@caresenior.dev',
-    'Enfermeira',
+    'nurse',
   ],
   [
     '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0203',
     'Bruno Kanashiro',
     'cuidador@caresenior.dev',
-    'Cuidador',
+    'caregiver',
   ],
 ];
 
@@ -54,12 +54,12 @@ export default async function seed(client) {
     [ROOM_12B_ID, ROOM_14A_ID, ROOM_14B_ID, CLINIC_ID],
   );
 
-  for (const [id, name, email, role] of STAFF) {
+  for (const [id, name, email, staffRole] of STAFF) {
     await client.query(
-      `INSERT INTO staff_members (id, name, email, role, clinic_id, password)
+      `INSERT INTO staff_members (id, name, email, staff_role, clinic_id, password)
        VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT (id) DO NOTHING`,
-      [id, name, email, role, CLINIC_ID, password],
+      [id, name, email, staffRole, CLINIC_ID, password],
     );
   }
 

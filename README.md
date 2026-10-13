@@ -175,7 +175,7 @@ Além dos endpoints, falta o convite de quem é cadastrado pela equipe (`/auth/*
 | GET    | `/staff/me`  | Perfil do colaborador logado              | Ambos   |                                                 |
 | GET    | `/staff/:id` | Detalhe                                   | Web     |                                                 |
 | PATCH  | `/staff/me`  | Editar o próprio perfil (nome, cpf, foto) | Mobile  |                                                 |
-| PATCH  | `/staff/:id` | Editar colaborador (inclui `role`)        | Web     |                                                 |
+| PATCH  | `/staff/:id` | Editar colaborador (inclui `staffRole`)   | Web     |                                                 |
 | DELETE | `/staff/:id` | Desativar colaborador                     | Web     | soft delete — nunca apagar linha com histórico |
 
 ### Guardians

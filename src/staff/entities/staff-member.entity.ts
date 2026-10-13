@@ -21,8 +21,13 @@ export class StaffMember {
   @Column({ unique: true })
   email!: string;
 
-  @Column({ type: 'enum', enum: StaffRole, enumName: 'staff_role' })
-  role!: StaffRole;
+  @Column({
+    name: 'staff_role',
+    type: 'enum',
+    enum: StaffRole,
+    enumName: 'staff_role',
+  })
+  staffRole!: StaffRole;
 
   @Column({ name: 'clinic_id' })
   clinicId!: string;
