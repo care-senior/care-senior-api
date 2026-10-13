@@ -28,7 +28,12 @@ export class NotificationRecipient {
   @Column({ name: 'user_id' })
   userId!: string;
 
-  @Column({ name: 'user_role', type: 'enum', enum: UserRole })
+  @Column({
+    name: 'user_role',
+    type: 'enum',
+    enum: UserRole,
+    enumName: 'user_role',
+  })
   userRole!: UserRole;
 
   @Column({ name: 'read_at', type: 'timestamptz', nullable: true })

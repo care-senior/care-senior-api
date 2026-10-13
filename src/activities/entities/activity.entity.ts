@@ -27,7 +27,7 @@ export class Activity {
   @JoinColumn({ name: 'clinic_id' })
   clinic!: Relation<Clinic>;
 
-  @Column({ type: 'enum', enum: ActivityType })
+  @Column({ type: 'enum', enum: ActivityType, enumName: 'activity_type' })
   type!: ActivityType;
 
   @Column()

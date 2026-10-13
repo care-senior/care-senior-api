@@ -24,7 +24,12 @@ export class Message {
   @JoinColumn({ name: 'resident_id' })
   resident!: Relation<Resident>;
 
-  @Column({ name: 'sender_role', type: 'enum', enum: UserRole })
+  @Column({
+    name: 'sender_role',
+    type: 'enum',
+    enum: UserRole,
+    enumName: 'user_role',
+  })
   senderRole!: UserRole;
 
   @Column({ name: 'sender_name' })
@@ -33,6 +38,6 @@ export class Message {
   @Column({ type: 'text' })
   text!: string;
 
-  @CreateDateColumn({ name: 'sent_at' })
+  @CreateDateColumn({ name: 'sent_at', type: 'timestamptz' })
   sentAt!: Date;
 }

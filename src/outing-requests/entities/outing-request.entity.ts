@@ -44,11 +44,12 @@ export class OutingRequest {
   @Column({
     type: 'enum',
     enum: OutingRequestStatus,
+    enumName: 'outing_request_status',
     default: OutingRequestStatus.PENDING,
   })
   status!: OutingRequestStatus;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;
 
   @Column({ name: 'responded_at', type: 'timestamptz', nullable: true })
