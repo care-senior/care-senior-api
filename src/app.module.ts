@@ -6,6 +6,7 @@ import { ActivitiesModule } from './modules/activities/activities.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { ClinicsModule } from './modules/clinics/clinics.module.js';
 import { GuardiansModule } from './modules/guardians/guardians.module.js';
+import { HealthRecordsModule } from './modules/health-records/health-records.module.js';
 import { MedicationsModule } from './modules/medications/medications.module.js';
 import { OutingRequestsModule } from './modules/outing-requests/outing-requests.module.js';
 import { ResidentsModule } from './modules/residents/residents.module.js';
@@ -71,6 +72,7 @@ const ENTITIES = [
     AuthModule,
     ClinicsModule,
     GuardiansModule,
+    HealthRecordsModule,
     MedicationsModule,
     OutingRequestsModule,
     ResidentsModule,

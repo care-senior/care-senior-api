@@ -17,6 +17,9 @@ const CAREGIVER_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0203';
 const LOSARTANA_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0601';
 const LOSARTANA_DOSE_ACTIVITY_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0503';
 const OUTING_REQUEST_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0701';
+const NURSE_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0202';
+const BLOOD_PRESSURE_RECORD_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0801';
+const GLUCOSE_RECORD_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0802';
 
 const STAFF = [
   [
@@ -25,12 +28,7 @@ const STAFF = [
     'coordenadora@caresenior.dev',
     'coordinator',
   ],
-  [
-    '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0202',
-    'Juliana Martins',
-    'enfermeira@caresenior.dev',
-    'nurse',
-  ],
+  [NURSE_ID, 'Juliana Martins', 'enfermeira@caresenior.dev', 'nurse'],
   [CAREGIVER_ID, 'Bruno Kanashiro', 'cuidador@caresenior.dev', 'caregiver'],
 ];
 
@@ -184,6 +182,21 @@ export default async function seed(client) {
       GUARDIAN_ID,
       inDaysAt(4, '10:00'),
       inDaysAt(4, '18:00'),
+    ],
+  );
+
+  await client.query(
+    `INSERT INTO health_records (id, resident_id, type, value, recorded_at,
+       recorded_by_staff_id) VALUES
+       ($1, $3, 'bloodPressure', '130/85 mmHg', $4, $5),
+       ($2, $3, 'glucose', '98 mg/dL', $4, $5)
+     ON CONFLICT (id) DO NOTHING`,
+    [
+      BLOOD_PRESSURE_RECORD_ID,
+      GLUCOSE_RECORD_ID,
+      RESIDENT_ID,
+      todayAt('07:10'),
+      NURSE_ID,
     ],
   );
 }

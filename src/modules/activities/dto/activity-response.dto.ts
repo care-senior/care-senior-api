@@ -6,14 +6,9 @@ import {
   UserRole,
 } from '../../../common/enums/index.js';
 import type { AuthenticatedUser } from '../../../common/types/authenticated-user.interface.js';
+import { StaffSummaryDto } from '../../staff/dto/staff-summary.dto.js';
 import type { ActivityParticipant } from '../entities/activity-participant.entity.js';
 import type { Activity } from '../entities/activity.entity.js';
-
-export class RegisteredByDto {
-  id!: string;
-
-  name!: string;
-}
 
 export class ActivityParticipantResponseDto {
   residentId!: string;
@@ -34,7 +29,7 @@ export class ActivityParticipantResponseDto {
   comment!: string | null;
 
   /** Staff member who registered the current status. Never sent to guardians. */
-  registeredBy?: RegisteredByDto | null;
+  registeredBy?: StaffSummaryDto | null;
 
   /** `resident` and `registeredBy` come from relations, so load them first. */
   static fromEntity(
@@ -56,10 +51,7 @@ export class ActivityParticipantResponseDto {
     dto.comment = participant.comment ?? null;
     if (currentUser.role === UserRole.STAFF) {
       dto.registeredBy = participant.registeredBy
-        ? {
-            id: participant.registeredBy.id,
-            name: participant.registeredBy.name,
-          }
+        ? StaffSummaryDto.fromEntity(participant.registeredBy)
         : null;
     }
     return dto;

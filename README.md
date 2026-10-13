@@ -100,6 +100,7 @@ Coisas que não ficam óbvias só olhando os campos:
 | `Guardian` ↔ `Resident`                                 | N:N de verdade (`guardian_resident`) — um responsável pode acompanhar idosos em clínicas diferentes, um idoso pode ter mais de um responsável.                            |
 | `Activity` → `Resident`                                 | Não existe FK direto — a relação passa por `ActivityParticipant`, que carrega o status individual de cada idoso na atividade.                                             |
 | `ActivityParticipant.registeredBy`                      | Auditoria interna (quem da equipe registrou) — nunca deve aparecer num DTO de resposta pra um `guardian`. `rating`/`comment` são visíveis ao responsável, esse campo não. |
+| `HealthRecord.recordedBy`                              | Mesma regra do `registeredBy`: a equipe vê quem registrou a medição, o responsável não. `type` é o enum `health_record_type` (`bloodPressure`, `glucose`, `weight`, `temperature`, `heartRate`, `other`); o valor continua texto com a unidade (`130/85 mmHg`). |
 | `Activity.medicationId` / `routineId`                   | Só preenchidos quando a atividade é uma dose de medicação ou foi gerada por uma `Routine`, respectivamente.                                                               |
 | `Routine.residents` / `rooms`                           | Só preenchidos conforme `Routine.scope`. `active = false` só pausa a geração de novas atividades, não apaga histórico.                                                    |
 | `Medication.endDate`                                    | Nulo significa tratamento contínuo, sem previsão de término.                                                                                                              |
@@ -121,7 +122,7 @@ docker compose run --rm api-dev npm run db:migrate
 docker compose run --rm api-dev npm run db:seed
 ```
 
-O seed cria a clínica "Residencial Vida Plena" com uma coordenadora (`coordenadora@caresenior.dev`), uma enfermeira (`enfermeira@caresenior.dev`), um cuidador (`cuidador@caresenior.dev`) e uma responsável (`responsavel@caresenior.dev`), todos com a senha `careSenior123`, além de um medicamento da idosa Maria (Losartana) e três atividades de hoje dela (a dose da Losartana e o café concluídos, a fisioterapia pendente) de uma solicitação de saída pendente dela e de uma solicitação de vínculo pendente (`vinculo-pendente@caresenior.dev`). Os e-mails enviados pela API (recuperação de senha) aparecem no Mailpit em `http://localhost:8025` — use `SMTP_HOST=mailpit` e `SMTP_PORT=1025` no `.env`.
+O seed cria a clínica "Residencial Vida Plena" com uma coordenadora (`coordenadora@caresenior.dev`), uma enfermeira (`enfermeira@caresenior.dev`), um cuidador (`cuidador@caresenior.dev`) e uma responsável (`responsavel@caresenior.dev`), todos com a senha `careSenior123`, além de um medicamento da idosa Maria (Losartana) e três atividades de hoje dela (a dose da Losartana e o café concluídos, a fisioterapia pendente) de duas medições de hoje (pressão e glicose), de uma solicitação de saída pendente dela e de uma solicitação de vínculo pendente (`vinculo-pendente@caresenior.dev`). Os e-mails enviados pela API (recuperação de senha) aparecem no Mailpit em `http://localhost:8025` — use `SMTP_HOST=mailpit` e `SMTP_PORT=1025` no `.env`.
 
 `DB_HOST` no `.env` aponta pro nome do serviço (`db`), não `localhost` — de dentro do container da API, `localhost` seria o próprio container.
 
@@ -137,7 +138,7 @@ docker compose run --rm api-dev npm run test:e2e
 
 ## O que falta implementar
 
-Hoje existem as entidades TypeORM, o schema SQL, a autenticação (`/auth`) e os módulos de clinics, staff, guardians, residents, rooms, activities, medications e outing-requests — as rotas prontas estão marcadas com ✅ nas tabelas abaixo; os demais domínios ainda não têm service, controller ou endpoint. O contrato de API abaixo é o mapeamento pra atender os dois clientes (mobile + web) sobre a mesma base de dados; "Cliente" na última coluna indica quem consome cada rota hoje, só pra saber o que quebra se o contrato mudar.
+Hoje existem as entidades TypeORM, o schema SQL, a autenticação (`/auth`) e os módulos de clinics, staff, guardians, residents, rooms, activities, medications, outing-requests e health-records — as rotas prontas estão marcadas com ✅ nas tabelas abaixo; os demais domínios ainda não têm service, controller ou endpoint. O contrato de API abaixo é o mapeamento pra atender os dois clientes (mobile + web) sobre a mesma base de dados; "Cliente" na última coluna indica quem consome cada rota hoje, só pra saber o que quebra se o contrato mudar.
 
 Além dos endpoints, falta o upload de fotos (`photoPath`). Os medicamentos informados no autocadastro e no cadastro walk-in não têm rota própria: o app chama `POST /medications` uma vez por medicamento logo depois de criar o idoso.
 
@@ -150,7 +151,7 @@ Além dos endpoints, falta o upload de fotos (`photoPath`). Os medicamentos info
 - `PATCH` pra atualização parcial — nunca `PUT`. Campo omitido mantém o valor; `null` limpa um campo opcional e é recusado (`400`) num campo obrigatório.
 - Ação que não é CRUD puro (aprovar, iniciar, desvincular) vira sub-rota verbo no infinitivo: `POST /resource/:id/acao`.
 - Toda rota exige o `JwtAuthGuard` (global) — rotas abertas são marcadas com `@Public()`. Rotas restritas por cargo usam `@Roles(...ROLES_THAT_MANAGE_REQUESTS)` (valores de `StaffRole`), checado pelo `RolesGuard`; sem `@Roles`, qualquer usuário autenticado passa e a checagem de propriedade fica no service. O usuário logado chega no controller via `@CurrentUser()` (`AuthenticatedUser`: `id`, `role`, `staffRole?`, `clinicId?`). Decorators, guards e esse tipo ficam em `src/common/`.
-- Entrada/saída tipadas por DTO (`CreateXDto`, `UpdateXDto`, `XResponseDto`) com `class-validator`/`class-transformer`. O `XResponseDto` de `ActivityParticipant` **não inclui `registeredBy`** quando quem pediu é `guardian` — ver "Decisões de modelagem" acima.
+- Entrada/saída tipadas por DTO (`CreateXDto`, `UpdateXDto`, `XResponseDto`) com `class-validator`/`class-transformer`. O `XResponseDto` de `ActivityParticipant` **não inclui `registeredBy`**, e o de `HealthRecord` não inclui `recordedBy`, quando quem pediu é `guardian` — ver "Decisões de modelagem" acima.
 - Paginação padrão em toda lista (`?page=&limit=`).
 - Data-hora de entrada (`scheduledTime`, `?from=&to=`) em ISO 8601 **com fuso** (`Z` ou `±hh:mm`, ex.: `2026-10-13T10:00:00-03:00`) — sem fuso é `400`, pra o horário nunca depender do fuso do servidor. As respostas vêm em UTC.
 
@@ -284,10 +285,12 @@ Uma prescrição é de um idoso. A permissão é a mesma do perfil do idoso: enq
 
 ### Health records
 
-| Método | Endpoint          | Descrição                            | Cliente | Observação |
-| ------ | ------------------- | ---------------------------------------- | ------- | ------------ |
-| GET    | `/health-records` | Lista (`?residentId=`, `?clinicId=`) | Ambos   |            |
-| POST   | `/health-records` | Registrar dado de saúde              | Mobile  |            |
+Medições de sinais vitais de um idoso, sempre registradas pela equipe da clínica dele (qualquer cargo) e só pra idoso vinculado. Quem vê o idoso vê as medições — o responsável sem `recordedBy`. `recordedAt` é o momento da medição: padrão agora, nunca no futuro.
+
+| Método | Endpoint          | Descrição                                                                  | Cliente | Observação |
+| ------ | ----------------- | -------------------------------------------------------------------------- | ------- | ---------- |
+| GET    | `/health-records` | Lista (`?residentId=`, `?clinicId=`, `?type=`, `?from=&to=`), mais recente primeiro | Ambos   | ✅ implementado |
+| POST   | `/health-records` | Registrar dado de saúde                                                    | Mobile  | ✅ implementado — só colaborador da clínica do idoso |
 
 ### Outing requests
 
