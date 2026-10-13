@@ -44,9 +44,11 @@ describe('GuardiansService', () => {
   const manager = {
     getRepository: vi.fn(),
     count: vi.fn(),
-    create: vi.fn((_entity: unknown, data: object) => ({ ...data })),
+    create: vi.fn((entity: new () => object, data: object) =>
+      Object.assign(new entity(), data),
+    ),
     save: vi.fn((entity: object) =>
-      Promise.resolve({ id: 'created-id', ...entity }),
+      Promise.resolve(Object.assign(entity, { id: 'created-id' })),
     ),
   };
   const dataSource = {
@@ -104,7 +106,12 @@ describe('GuardiansService', () => {
 
   describe('create (walk-in)', () => {
     it('creates guardian and resident in the staff clinic, then invites the guardian', async () => {
-      roomQuery({ id: 'room-1', clinicId: 'clinic-1', capacity: 2 });
+      roomQuery({
+        id: 'room-1',
+        number: '12B',
+        clinicId: 'clinic-1',
+        capacity: 2,
+      });
       manager.count.mockResolvedValue(1);
 
       const response = await service.create(walkIn, nurse);
@@ -112,6 +119,7 @@ describe('GuardiansService', () => {
       expect(response.resident).toMatchObject({
         clinicId: 'clinic-1',
         roomId: 'room-1',
+        roomNumber: '12B',
       });
       expect(response.guardian.maskedCpf).toBe('•••.•••.•••-25');
       expect(invitations.inviteGuardian).toHaveBeenCalledWith(

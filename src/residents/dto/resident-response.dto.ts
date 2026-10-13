@@ -1,40 +1,54 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Expose } from 'class-transformer';
+import { ApiProperty } from '@nestjs/swagger';
+import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto.js';
 import { ResidentMood } from '../../common/enums/index.js';
+import type { Resident } from '../entities/resident.entity.js';
 
 export class ResidentResponseDto {
-  @Expose()
   id!: string;
 
-  @Expose()
   name!: string;
 
-  @Expose()
   age!: number;
 
-  @Expose()
-  healthNotes?: string | null;
+  healthNotes!: string | null;
 
   /** Null before the resident is linked to a clinic and after a discharge. */
-  @Expose()
-  clinicId?: string | null;
+  clinicId!: string | null;
 
-  @Expose()
-  roomId?: string | null;
+  roomId!: string | null;
 
-  @ApiPropertyOptional({ enum: ResidentMood, enumName: 'ResidentMood' })
-  @Expose()
-  mood?: ResidentMood | null;
+  roomNumber!: string | null;
 
-  @Expose()
-  peculiarities?: string | null;
+  @ApiProperty({ enum: ResidentMood, enumName: 'ResidentMood', nullable: true })
+  mood!: ResidentMood | null;
 
-  @Expose()
-  photoPath?: string | null;
+  peculiarities!: string | null;
 
-  @Expose()
-  emergencyContactName?: string | null;
+  photoPath!: string | null;
 
-  @Expose()
-  emergencyContactPhone?: string | null;
+  emergencyContactName!: string | null;
+
+  emergencyContactPhone!: string | null;
+
+  /** `roomNumber` comes from `resident.room`, so load that relation first. */
+  static fromEntity(resident: Resident): ResidentResponseDto {
+    const dto = new ResidentResponseDto();
+    dto.id = resident.id;
+    dto.name = resident.name;
+    dto.age = resident.age;
+    dto.healthNotes = resident.healthNotes ?? null;
+    dto.clinicId = resident.clinicId ?? null;
+    dto.roomId = resident.roomId ?? null;
+    dto.roomNumber = resident.roomNumber ?? null;
+    dto.mood = resident.mood ?? null;
+    dto.peculiarities = resident.peculiarities ?? null;
+    dto.photoPath = resident.photoPath ?? null;
+    dto.emergencyContactName = resident.emergencyContactName ?? null;
+    dto.emergencyContactPhone = resident.emergencyContactPhone ?? null;
+    return dto;
+  }
 }
+
+export class ResidentPageDto extends PaginatedResponseDto(
+  ResidentResponseDto,
+) {}
