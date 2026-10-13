@@ -16,6 +16,7 @@ const PHYSIOTHERAPY_ACTIVITY_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0502';
 const CAREGIVER_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0203';
 const LOSARTANA_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0601';
 const LOSARTANA_DOSE_ACTIVITY_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0503';
+const OUTING_REQUEST_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0701';
 
 const STAFF = [
   [
@@ -33,13 +34,16 @@ const STAFF = [
   [CAREGIVER_ID, 'Bruno Kanashiro', 'cuidador@caresenior.dev', 'caregiver'],
 ];
 
-// Brasília time, so the sample agenda always lands on the day the seed runs.
-function todayAt(time) {
-  const today = new Intl.DateTimeFormat('en-CA', {
+// Brasília time, so the sample agenda always lands relative to the day the
+// seed runs.
+function inDaysAt(days, time) {
+  const day = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Sao_Paulo',
-  }).format(new Date());
-  return `${today}T${time}:00-03:00`;
+  }).format(new Date(Date.now() + days * 24 * 60 * 60 * 1000));
+  return `${day}T${time}:00-03:00`;
 }
+
+const todayAt = (time) => inDaysAt(0, time);
 
 export default async function seed(client) {
   const password = await argon2.hash(DEV_PASSWORD, { type: argon2.argon2id });
@@ -167,5 +171,19 @@ export default async function seed(client) {
      VALUES ($1, $2, 'completed', $3, $4)
      ON CONFLICT (activity_id, resident_id) DO NOTHING`,
     [LOSARTANA_DOSE_ACTIVITY_ID, RESIDENT_ID, todayAt('07:35'), CAREGIVER_ID],
+  );
+
+  await client.query(
+    `INSERT INTO outing_requests (id, resident_id, guardian_id, departure_at,
+       return_at, notes)
+     VALUES ($1, $2, $3, $4, $5, 'Almoço de aniversário na casa da filha; levar a Losartana')
+     ON CONFLICT (id) DO NOTHING`,
+    [
+      OUTING_REQUEST_ID,
+      RESIDENT_ID,
+      GUARDIAN_ID,
+      inDaysAt(4, '10:00'),
+      inDaysAt(4, '18:00'),
+    ],
   );
 }
