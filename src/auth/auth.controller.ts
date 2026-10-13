@@ -19,6 +19,7 @@ import { AuthService, type AuthResult } from './auth.service.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 import { Public } from '../common/decorators/public.decorator.js';
 import type { AuthenticatedUser } from '../common/types/authenticated-user.interface.js';
+import { AcceptInviteDto } from './dto/accept-invite.dto.js';
 import { AuthResponseDto } from './dto/auth-response.dto.js';
 import { AuthUserDto } from './dto/auth-user.dto.js';
 import { ForgotPasswordDto } from './dto/forgot-password.dto.js';
@@ -127,6 +128,14 @@ export class AuthController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async forgotGuardianPassword(@Body() dto: ForgotPasswordDto) {
     await this.auth.requestPasswordReset(UserRole.GUARDIAN, dto.email);
+  }
+
+  @Public()
+  @UseGuards(AuthThrottlerGuard)
+  @Post('staff/accept-invite')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async acceptStaffInvite(@Body() dto: AcceptInviteDto) {
+    await this.auth.acceptInvite(UserRole.STAFF, dto);
   }
 
   @Public()

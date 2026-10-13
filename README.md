@@ -88,7 +88,8 @@ Coisas que não ficam óbvias só olhando os campos:
 | `UserFeedback.authorId`, `NotificationRecipient.userId` | FKs polimórficas (`StaffMember` ou `Guardian`, conforme `authorRole`/`userRole`) — sem relação direta possível no TypeORM, resolvidas na camada de aplicação.             |
 | `NotificationRecipient`                                 | Substitui o `audience` genérico do mock original: como leitura é por usuário, cada destinatário tem sua própria linha e seu próprio `readAt`.                             |
 | `StaffRole`                                             | Só `COORDINATOR`/`NURSE` (`ROLES_THAT_MANAGE_REQUESTS`) aprovam/recusam solicitações e desvinculam idosos — `CAREGIVER` não.                                              |
-| `StaffMember.cpf`, `Guardian.cpf`                       | Criptografados em repouso (AES-256-GCM, chave em `CPF_ENCRYPTION_KEY`) via transformer da coluna. Como cada gravação gera um texto cifrado diferente, não dá pra buscar nem impor unicidade por CPF no banco. |
+| `StaffMember.cpf`, `Guardian.cpf`                       | Criptografados em repouso (AES-256-GCM, chave em `CPF_ENCRYPTION_KEY`) via transformer da coluna. Como cada gravação gera um texto cifrado diferente, não dá pra buscar nem impor unicidade por CPF no banco. A API valida os dígitos verificadores, grava só os 11 dígitos e nunca devolve o CPF inteiro — as respostas trazem `maskedCpf` (`•••.•••.•••-25`). |
+| `StaffMember.deactivatedAt`                              | Soft delete: colaborador desativado some da listagem padrão, não loga mais e tem as sessões revogadas, mas a linha e o histórico ficam. |
 | `StaffMember.password`, `Guardian.password`             | Hash argon2id, `select: false` na entidade. Nulo enquanto a pessoa não definiu a senha (convite pendente) — essa conta não consegue logar.                                |
 
 ## Rodando localmente
@@ -120,7 +121,7 @@ docker compose run --rm api-dev npm run test:e2e
 
 Hoje existem as entidades TypeORM, o schema SQL e a autenticação (`/auth`); os demais domínios ainda não têm service, controller ou endpoint. O contrato de API abaixo é o mapeamento pra atender os dois clientes (mobile + web) sobre a mesma base de dados; "Cliente" na última coluna indica quem consome cada rota hoje, só pra saber o que quebra se o contrato mudar.
 
-Além dos endpoints, falta o convite de quem é cadastrado pela equipe (`/auth/*/accept-invite`) e o autocadastro do responsável (`/auth/guardian/register`) — ambos entram junto com `POST /staff` e `POST /guardians`. A infraestrutura de token de uso único (`auth_tokens`, propósito `invite`) já existe.
+Além dos endpoints, falta o convite do responsável cadastrado pela equipe (`/auth/guardian/accept-invite`) e o autocadastro do responsável (`/auth/guardian/register`) — ambos entram junto com `POST /guardians`. O convite de colaborador já existe e serve de modelo (`InvitationsService`).
 
 **Convenções gerais** (padrão NestJS):
 
@@ -147,7 +148,7 @@ Além dos endpoints, falta o convite de quem é cadastrado pela equipe (`/auth/*
 | POST   | `/auth/guardian/forgot-password` | Idem, para responsável                                                           | Mobile  | ✅ implementado — sempre `204`                   |
 | POST   | `/auth/reset-password`           | Define a nova senha a partir do token do e-mail (body: `token`, `password`)      | Ambos   | ✅ implementado                                  |
 | POST   | `/auth/guardian/register`        | Autocadastro do responsável + idoso (2 passos consolidados)                      | Mobile  |                                                 |
-| POST   | `/auth/staff/accept-invite`      | Define a senha do colaborador recém-cadastrado (body: `token`, `password`)       | Web     | completa o `POST /staff` — ver nota abaixo      |
+| POST   | `/auth/staff/accept-invite`      | Define a senha do colaborador recém-cadastrado (body: `token`, `password`)       | Web     | ✅ implementado — completa o `POST /staff`; `204`, sem login automático |
 | POST   | `/auth/guardian/accept-invite`   | Define a senha do responsável cadastrado via walk-in (body: `token`, `password`) | Ambos   | completa o `POST /guardians` — ver nota abaixo  |
 
 **Sessão:** o login devolve um access token JWT (`Authorization: Bearer`, 15 min por padrão, assinado com `JWT_SECRET`, payload `{ sub, role, staffRole?, clinicId? }`) e um refresh token JWT (30 dias, assinado com `JWT_REFRESH_SECRET`) ligado a uma linha de `auth_sessions`. Cada `POST /auth/refresh` gira o refresh token; reapresentar um refresh já usado derruba a sessão inteira (sinal de que o token vazou). `logout` e `reset-password` revogam sessões, mas um access token já emitido continua válido até expirar.
@@ -156,7 +157,7 @@ Além dos endpoints, falta o convite de quem é cadastrado pela equipe (`/auth/*
 
 **Segurança:** senhas com argon2id (mínimo 8 caracteres); login, `forgot-password` e `reset-password` limitados a 5 tentativas por minuto por IP + e-mail; respostas de login e `forgot-password` não revelam se o e-mail existe. O link de redefinição (`PASSWORD_RESET_URL?token=...`) vale 1 hora, é de uso único e pedir outro invalida o anterior.
 
-> **De onde vem a senha de quem não se autocadastrou:** `POST /staff` e `POST /guardians` (cadastro pela equipe) criam o registro **sem senha** — o backend deve gerar um token de convite e disparar e-mail/SMS pra quem foi cadastrado definir a própria senha em `/auth/*/accept-invite`. Até lá, a conta existe mas não consegue logar.
+> **De onde vem a senha de quem não se autocadastrou:** `POST /staff` e `POST /guardians` (cadastro pela equipe) criam o registro **sem senha** e enviam por e-mail um link de convite (`STAFF_INVITE_URL?token=...`, válido por 72 horas) pra pessoa definir a própria senha em `/auth/*/accept-invite`. Até lá, a conta existe mas não consegue logar. Se o link expirar ou o e-mail não chegar, "Esqueci minha senha" funciona também pra conta sem senha e serve de reenvio.
 
 ### Clinics
 
@@ -168,15 +169,17 @@ Além dos endpoints, falta o convite de quem é cadastrado pela equipe (`/auth/*
 
 ### Staff
 
-| Método | Endpoint     | Descrição                                 | Cliente | Observação                                     |
-| ------ | ------------- | -------------------------------------------- | ------- | ---------------------------------------------------- |
-| GET    | `/staff`     | Lista colaboradores (`?clinicId=`)        | Web     | tela "Colaboradores"                           |
-| POST   | `/staff`     | Cadastrar colaborador                     | Web     |                                                 |
-| GET    | `/staff/me`  | Perfil do colaborador logado              | Ambos   |                                                 |
-| GET    | `/staff/:id` | Detalhe                                   | Web     |                                                 |
-| PATCH  | `/staff/me`  | Editar o próprio perfil (nome, cpf, foto) | Mobile  |                                                 |
-| PATCH  | `/staff/:id` | Editar colaborador (inclui `staffRole`)   | Web     |                                                 |
-| DELETE | `/staff/:id` | Desativar colaborador                     | Web     | soft delete — nunca apagar linha com histórico |
+Toda rota de staff é restrita a colaboradores e à clínica de quem chama. Coordenadora e enfermeira (`ROLES_THAT_MANAGE_REQUESTS`) gerenciam a equipe, mas só a coordenadora cria, edita, promove para ou desativa uma coordenadora. Ninguém desativa a si mesmo, e a clínica nunca fica sem coordenadora ativa (`409`).
+
+| Método | Endpoint     | Descrição                                                                  | Cliente | Observação                                                                        |
+| ------ | ------------ | -------------------------------------------------------------------------- | ------- | --------------------------------------------------------------------------------- |
+| GET    | `/staff`     | Lista colaboradores (`?search=`, `?staffRole=`, `?includeInactive=`, `?clinicId=`) | Web     | ✅ implementado — tela "Colaboradores"; desativados ficam de fora por padrão       |
+| POST   | `/staff`     | Cadastrar colaborador (envia o convite por e-mail)                         | Web     | ✅ implementado — `@Roles(COORDINATOR, NURSE)`                                     |
+| GET    | `/staff/me`  | Perfil do colaborador logado                                               | Ambos   | ✅ implementado                                                                    |
+| GET    | `/staff/:id` | Detalhe                                                                    | Web     | ✅ implementado                                                                    |
+| PATCH  | `/staff/me`  | Editar o próprio perfil (nome, cpf)                                        | Mobile  | ✅ implementado — foto aguarda a definição de upload                               |
+| PATCH  | `/staff/:id` | Editar colaborador (nome, e-mail, cpf, `staffRole`)                        | Web     | ✅ implementado — `@Roles(COORDINATOR, NURSE)`                                     |
+| DELETE | `/staff/:id` | Desativar colaborador                                                      | Web     | ✅ implementado — soft delete (`deactivatedAt`), revoga as sessões; `204`          |
 
 ### Guardians
 

@@ -26,6 +26,7 @@ jobs:
           SMTP_PORT=1025
           SMTP_FROM=Care Senior <ci@caresenior.dev>
           PASSWORD_RESET_URL=http://localhost:5173/redefinir-senha
+          STAFF_INVITE_URL=http://localhost:5173/criar-senha
           CPF_ENCRYPTION_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
           EOF
 

@@ -25,7 +25,7 @@ export class OneTimeTokensService {
   ) {}
 
   async issue(
-    account: Account,
+    account: Pick<Account, 'id' | 'role'>,
     purpose: AuthTokenPurpose,
     ttlMs: number,
   ): Promise<string> {
@@ -51,8 +51,12 @@ export class OneTimeTokensService {
     return token;
   }
 
-  async consume(token: string, purpose: AuthTokenPurpose): Promise<TokenOwner> {
-    const result = await this.tokens
+  async consume(
+    token: string,
+    purpose: AuthTokenPurpose,
+    userRole?: UserRole,
+  ): Promise<TokenOwner> {
+    const query = this.tokens
       .createQueryBuilder()
       .update()
       .set({ usedAt: () => 'now()' })
@@ -60,8 +64,9 @@ export class OneTimeTokensService {
       .andWhere('purpose = :purpose', { purpose })
       .andWhere('used_at IS NULL')
       .andWhere('expires_at > now()')
-      .returning(['userId', 'userRole'])
-      .execute();
+      .returning(['userId', 'userRole']);
+    if (userRole) query.andWhere('user_role = :userRole', { userRole });
+    const result = await query.execute();
 
     const [owner] = result.raw as { user_id: string; user_role: UserRole }[];
     if (!owner) throw new BadRequestException('Invalid or expired token');

@@ -14,6 +14,7 @@ import { AuthService } from './auth.service.js';
 import { AuthSession } from './entities/auth-session.entity.js';
 import { AuthToken } from './entities/auth-token.entity.js';
 import { AuthThrottlerGuard } from './guards/auth-throttler.guard.js';
+import { InvitationsService } from './invitations.service.js';
 import { JwtTokensService } from './jwt-tokens.service.js';
 import { OneTimeTokensService } from './one-time-tokens.service.js';
 import { PasswordService } from './password.service.js';
@@ -36,9 +37,11 @@ const AUTH_ATTEMPTS_PER_MINUTE = 5;
     JwtTokensService,
     SessionsService,
     OneTimeTokensService,
+    InvitationsService,
     AuthThrottlerGuard,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
   ],
+  exports: [InvitationsService, SessionsService],
 })
 export class AuthModule {}

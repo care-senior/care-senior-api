@@ -3,6 +3,12 @@ import { ConfigService } from '@nestjs/config';
 import nodemailer, { type Transporter } from 'nodemailer';
 import type { Environment } from '../config/environment.js';
 
+export interface InviteMail {
+  to: string;
+  name: string;
+  inviteUrl: string;
+}
+
 export interface PasswordResetMail {
   to: string;
   name: string;
@@ -40,6 +46,22 @@ export class MailService {
         `Para criar uma nova senha, acesse: ${resetUrl}`,
         '',
         'O link expira em 1 hora. Se você não fez esse pedido, ignore este e-mail.',
+      ].join('\n'),
+    });
+  }
+
+  async sendInvite({ to, name, inviteUrl }: InviteMail) {
+    await this.transporter.sendMail({
+      from: this.from,
+      to,
+      subject: 'Care Senior — crie sua senha de acesso',
+      text: [
+        `Olá, ${name}!`,
+        '',
+        'Você foi cadastrado(a) na equipe de uma clínica no Care Senior.',
+        `Para criar sua senha e acessar o painel, acesse: ${inviteUrl}`,
+        '',
+        'O link expira em 72 horas. Depois disso, use "Esqueci minha senha" na tela de login.',
       ].join('\n'),
     });
   }

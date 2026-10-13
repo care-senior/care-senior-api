@@ -5,6 +5,7 @@ import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { AuthModule } from './auth/auth.module.js';
 import { ClinicsModule } from './clinics/clinics.module.js';
+import { StaffModule } from './staff/staff.module.js';
 import { AuthSession } from './auth/entities/auth-session.entity.js';
 import { AuthToken } from './auth/entities/auth-token.entity.js';
 import { validateEnvironment, type Environment } from './config/environment.js';
@@ -63,6 +64,7 @@ const ENTITIES = [
     }),
     AuthModule,
     ClinicsModule,
+    StaffModule,
   ],
   controllers: [AppController],
   providers: [AppService],

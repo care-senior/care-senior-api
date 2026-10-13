@@ -84,6 +84,9 @@ export class Environment {
   @IsUrl({ require_tld: false })
   PASSWORD_RESET_URL!: string;
 
+  @IsUrl({ require_tld: false })
+  STAFF_INVITE_URL!: string;
+
   @Matches(BASE64_32_BYTES, {
     message: 'CPF_ENCRYPTION_KEY must be 32 random bytes encoded in base64',
   })
