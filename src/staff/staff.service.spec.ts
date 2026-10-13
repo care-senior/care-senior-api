@@ -93,10 +93,7 @@ describe('StaffService', () => {
       });
       expect(response).not.toHaveProperty('cpf');
       expect(invitations.inviteStaffMember).toHaveBeenCalledWith(
-        expect.objectContaining({
-          role: UserRole.STAFF,
-          email: 'larissa@clinica.com',
-        }),
+        expect.objectContaining({ email: 'larissa@clinica.com' }),
       );
     });
 

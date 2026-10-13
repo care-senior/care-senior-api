@@ -91,12 +91,7 @@ export class StaffService {
     const staffMember = await this.saveCheckingEmail(
       this.staffRepository.create({ ...dto, clinicId }),
     );
-    await this.invitations.inviteStaffMember({
-      id: staffMember.id,
-      role: UserRole.STAFF,
-      name: staffMember.name,
-      email: staffMember.email,
-    });
+    await this.invitations.inviteStaffMember(staffMember);
     return StaffResponseDto.fromEntity(staffMember);
   }
 

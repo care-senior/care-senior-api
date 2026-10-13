@@ -140,6 +140,14 @@ export class AuthController {
 
   @Public()
   @UseGuards(AuthThrottlerGuard)
+  @Post('guardian/accept-invite')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async acceptGuardianInvite(@Body() dto: AcceptInviteDto) {
+    await this.auth.acceptInvite(UserRole.GUARDIAN, dto);
+  }
+
+  @Public()
+  @UseGuards(AuthThrottlerGuard)
   @Post('reset-password')
   @HttpCode(HttpStatus.NO_CONTENT)
   async resetPassword(@Body() dto: ResetPasswordDto) {
