@@ -309,4 +309,16 @@ export default async function seed(client) {
      ON CONFLICT DO NOTHING`,
     [MUSIC_ROUTINE_ID, ROOM_12B_ID],
   );
+
+  // A month of occupancy history, as the hourly snapshot job would have
+  // recorded it; today comes live from the rooms.
+  await client.query(
+    `INSERT INTO occupancy_snapshots (clinic_id, day, occupied_beds, capacity)
+     SELECT $1, day::date,
+            CASE WHEN day < current_date - 20 THEN 0 ELSE 1 END,
+            (SELECT sum(capacity) FROM rooms WHERE clinic_id = $1)
+     FROM generate_series(current_date - 30, current_date - 1, interval '1 day') day
+     ON CONFLICT DO NOTHING`,
+    [CLINIC_ID],
+  );
 }
