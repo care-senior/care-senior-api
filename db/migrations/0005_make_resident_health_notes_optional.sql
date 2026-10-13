@@ -1,0 +1,1 @@
+ALTER TABLE residents ALTER COLUMN health_notes DROP NOT NULL;
