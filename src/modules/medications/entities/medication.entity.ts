@@ -36,16 +36,16 @@ export class Medication {
   frequency!: string;
 
   @Column({ type: 'text', nullable: true })
-  instructions?: string;
+  instructions?: string | null;
 
-  @Column({ name: 'prescribed_by', nullable: true })
-  prescribedBy?: string;
+  @Column({ name: 'prescribed_by', type: 'varchar', nullable: true })
+  prescribedBy?: string | null;
 
   @Column({ name: 'start_date', type: 'timestamptz' })
   startDate!: Date;
 
   @Column({ name: 'end_date', type: 'timestamptz', nullable: true })
-  endDate?: Date;
+  endDate?: Date | null;
 
   @Column({ default: true })
   active!: boolean;

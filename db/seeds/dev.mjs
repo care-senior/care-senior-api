@@ -14,6 +14,8 @@ const PENDING_RESIDENT_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0302';
 const BREAKFAST_ACTIVITY_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0501';
 const PHYSIOTHERAPY_ACTIVITY_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0502';
 const CAREGIVER_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0203';
+const LOSARTANA_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0601';
+const LOSARTANA_DOSE_ACTIVITY_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0503';
 
 const STAFF = [
   [
@@ -141,5 +143,29 @@ export default async function seed(client) {
       todayAt('08:20'),
       CAREGIVER_ID,
     ],
+  );
+
+  await client.query(
+    `INSERT INTO medications (id, resident_id, name, dosage, form, frequency,
+       instructions, prescribed_by, start_date)
+     VALUES ($1, $2, 'Losartana', '50mg', 'tablet', '1x ao dia, pela manhã',
+       'Tomar em jejum', 'Dr. Paulo Lima', '2026-01-10T00:00:00-03:00')
+     ON CONFLICT (id) DO NOTHING`,
+    [LOSARTANA_ID, RESIDENT_ID],
+  );
+
+  await client.query(
+    `INSERT INTO activities (id, clinic_id, type, title, scheduled_time, medication_id)
+     VALUES ($1, $2, 'medication', 'Losartana 50mg', $3, $4)
+     ON CONFLICT (id) DO UPDATE SET scheduled_time = EXCLUDED.scheduled_time`,
+    [LOSARTANA_DOSE_ACTIVITY_ID, CLINIC_ID, todayAt('07:30'), LOSARTANA_ID],
+  );
+
+  await client.query(
+    `INSERT INTO activity_participants (activity_id, resident_id, status,
+       status_changed_at, registered_by_staff_id)
+     VALUES ($1, $2, 'completed', $3, $4)
+     ON CONFLICT (activity_id, resident_id) DO NOTHING`,
+    [LOSARTANA_DOSE_ACTIVITY_ID, RESIDENT_ID, todayAt('07:35'), CAREGIVER_ID],
   );
 }

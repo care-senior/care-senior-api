@@ -4,6 +4,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
 } from 'class-validator';
 import { ActivityType } from '../../../common/enums/index.js';
@@ -32,6 +33,11 @@ export class UpdateActivityDto {
   @IsString()
   @MaxLength(2000)
   detail?: string | null;
+
+  /** `null` unlinks the prescription. */
+  @IsOptional()
+  @IsUUID()
+  medicationId?: string | null;
 
   /** Replaces the participants. */
   @IsOptionalNotNull()

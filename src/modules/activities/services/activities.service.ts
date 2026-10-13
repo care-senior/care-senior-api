@@ -15,9 +15,15 @@ import {
   type SelectQueryBuilder,
 } from 'typeorm';
 import { paginate } from '../../../common/dto/paginated-response.dto.js';
-import { ActivityStatus, UserRole } from '../../../common/enums/index.js';
+import {
+  ActivityStatus,
+  ActivityType,
+  UserRole,
+} from '../../../common/enums/index.js';
 import type { AuthenticatedUser } from '../../../common/types/authenticated-user.interface.js';
+import { Medication } from '../../medications/entities/medication.entity.js';
 import { Resident } from '../../residents/entities/resident.entity.js';
+import { ResidentAccessService } from '../../residents/services/resident-access.service.js';
 import {
   ActivityPageDto,
   ActivityResponseDto,
@@ -52,7 +58,10 @@ export class ActivitiesService {
     private readonly activityRepository: Repository<Activity>,
     @InjectRepository(Resident)
     private readonly residentRepository: Repository<Resident>,
+    @InjectRepository(Medication)
+    private readonly medicationRepository: Repository<Medication>,
     private readonly dataSource: DataSource,
+    private readonly residentAccess: ResidentAccessService,
   ) {}
 
   async findAll(
@@ -69,7 +78,10 @@ export class ActivitiesService {
 
     if (currentUser.role === UserRole.GUARDIAN) {
       if (query.residentId) {
-        await this.assertIsGuardianOf(query.residentId, currentUser.id);
+        await this.residentAccess.assertIsGuardianOf(
+          query.residentId,
+          currentUser.id,
+        );
       }
       if (query.clinicId) {
         queryBuilder.andWhere('activity.clinicId = :clinicId', {
@@ -148,6 +160,12 @@ export class ActivitiesService {
     const clinicId = this.ownClinicId(currentUser);
     const { residentIds, scheduledTime, ...fields } = dto;
     await this.assertResidentsOfClinic(residentIds, clinicId);
+    await this.assertMedicationFits(
+      fields.type,
+      residentIds,
+      fields.medicationId,
+      true,
+    );
 
     const id = await this.dataSource.transaction(async (manager) => {
       const activity = await manager.save(
@@ -189,6 +207,25 @@ export class ActivitiesService {
       if (hasStarted) {
         throw new ConflictException(
           'Only activities not started yet can be edited',
+        );
+      }
+      if (
+        fields.type !== undefined ||
+        fields.medicationId !== undefined ||
+        residentIds
+      ) {
+        const currentParticipants = await manager.findBy(ActivityParticipant, {
+          activityId: id,
+        });
+        await this.assertMedicationFits(
+          fields.type ?? activity.type,
+          residentIds ??
+            currentParticipants.map(({ residentId }) => residentId),
+          fields.medicationId !== undefined
+            ? fields.medicationId
+            : activity.medicationId,
+          fields.medicationId !== undefined &&
+            fields.medicationId !== activity.medicationId,
         );
       }
 
@@ -404,21 +441,34 @@ export class ActivitiesService {
     }
   }
 
-  private async assertIsGuardianOf(residentId: string, guardianId: string) {
-    const isGuardian = await this.residentRepository
-      .createQueryBuilder('resident')
-      .innerJoin(
-        'resident.guardians',
-        'guardian',
-        'guardian.id = :guardianId',
-        {
-          guardianId,
-        },
-      )
-      .where('resident.id = :residentId', { residentId })
-      .getExists();
-    if (!isGuardian) {
-      throw new ForbiddenException('Resident belongs to another guardian');
+  // A dose belongs to one prescription, so a medication activity only takes
+  // the resident it was prescribed to. A deactivated prescription can stay
+  // on old doses but can't be linked to a new one.
+  private async assertMedicationFits(
+    type: ActivityType,
+    residentIds: string[],
+    medicationId: string | null | undefined,
+    linksNewMedication: boolean,
+  ) {
+    if (!medicationId) return;
+    if (type !== ActivityType.MEDICATION) {
+      throw new BadRequestException(
+        'Only medication activities can reference a medication',
+      );
+    }
+    const medication = await this.medicationRepository.findOneBy({
+      id: medicationId,
+    });
+    if (!medication) {
+      throw new NotFoundException(`Medication ${medicationId} not found`);
+    }
+    if (residentIds.length !== 1 || residentIds[0] !== medication.residentId) {
+      throw new BadRequestException(
+        'A medication activity only takes the resident the medication was prescribed to',
+      );
+    }
+    if (linksNewMedication && !medication.active) {
+      throw new ConflictException(`Medication ${medicationId} was deactivated`);
     }
   }
 

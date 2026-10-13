@@ -121,7 +121,7 @@ docker compose run --rm api-dev npm run db:migrate
 docker compose run --rm api-dev npm run db:seed
 ```
 
-O seed cria a clínica "Residencial Vida Plena" com uma coordenadora (`coordenadora@caresenior.dev`), uma enfermeira (`enfermeira@caresenior.dev`), um cuidador (`cuidador@caresenior.dev`) e uma responsável (`responsavel@caresenior.dev`), todos com a senha `careSenior123`, além de duas atividades de hoje da idosa Maria (uma concluída, outra pendente) e de uma solicitação de vínculo pendente (`vinculo-pendente@caresenior.dev`). Os e-mails enviados pela API (recuperação de senha) aparecem no Mailpit em `http://localhost:8025` — use `SMTP_HOST=mailpit` e `SMTP_PORT=1025` no `.env`.
+O seed cria a clínica "Residencial Vida Plena" com uma coordenadora (`coordenadora@caresenior.dev`), uma enfermeira (`enfermeira@caresenior.dev`), um cuidador (`cuidador@caresenior.dev`) e uma responsável (`responsavel@caresenior.dev`), todos com a senha `careSenior123`, além de um medicamento da idosa Maria (Losartana) e três atividades de hoje dela (a dose da Losartana e o café concluídos, a fisioterapia pendente) e de uma solicitação de vínculo pendente (`vinculo-pendente@caresenior.dev`). Os e-mails enviados pela API (recuperação de senha) aparecem no Mailpit em `http://localhost:8025` — use `SMTP_HOST=mailpit` e `SMTP_PORT=1025` no `.env`.
 
 `DB_HOST` no `.env` aponta pro nome do serviço (`db`), não `localhost` — de dentro do container da API, `localhost` seria o próprio container.
 
@@ -137,9 +137,9 @@ docker compose run --rm api-dev npm run test:e2e
 
 ## O que falta implementar
 
-Hoje existem as entidades TypeORM, o schema SQL, a autenticação (`/auth`) e os módulos de clinics, staff, guardians, residents, rooms e activities — as rotas prontas estão marcadas com ✅ nas tabelas abaixo; os demais domínios ainda não têm service, controller ou endpoint. O contrato de API abaixo é o mapeamento pra atender os dois clientes (mobile + web) sobre a mesma base de dados; "Cliente" na última coluna indica quem consome cada rota hoje, só pra saber o que quebra se o contrato mudar.
+Hoje existem as entidades TypeORM, o schema SQL, a autenticação (`/auth`) e os módulos de clinics, staff, guardians, residents, rooms, activities e medications — as rotas prontas estão marcadas com ✅ nas tabelas abaixo; os demais domínios ainda não têm service, controller ou endpoint. O contrato de API abaixo é o mapeamento pra atender os dois clientes (mobile + web) sobre a mesma base de dados; "Cliente" na última coluna indica quem consome cada rota hoje, só pra saber o que quebra se o contrato mudar.
 
-Além dos endpoints, faltam os medicamentos informados no autocadastro e no cadastro walk-in, que entram com o módulo de medications, e o upload de fotos (`photoPath`).
+Além dos endpoints, falta o upload de fotos (`photoPath`). Os medicamentos informados no autocadastro e no cadastro walk-in não têm rota própria: o app chama `POST /medications` uma vez por medicamento logo depois de criar o idoso.
 
 **Convenções gerais** (padrão NestJS):
 
@@ -250,7 +250,7 @@ Status de participante: `pending` → `inProgress` (opcional, via `start-all`) �
 | Método | Endpoint                                            | Descrição                                                     | Cliente | Observação          |
 | ------ | --------------------------------------------------- | ------------------------------------------------------------- | ------- | ------------------- |
 | GET    | `/activities`                                       | Lista (`?clinicId=`, `?residentId=`, `?from=&to=`), por horário | Ambos   | ✅ implementado     |
-| POST   | `/activities`                                       | Agendar atividade (um ou mais idosos)                         | Ambos   | ✅ implementado — só idosos da própria clínica; foto e medicamento ainda não |
+| POST   | `/activities`                                       | Agendar atividade (um ou mais idosos)                         | Ambos   | ✅ implementado — só idosos da própria clínica; `medicationId` só numa atividade `medication` com um único participante, o idoso da prescrição ativa; foto ainda não |
 | GET    | `/activities/:id`                                   | Detalhe + participantes                                       | Ambos   | ✅ implementado     |
 | PATCH  | `/activities/:id`                                   | Editar atividade ainda não iniciada (inclusive participantes) | Ambos   | ✅ implementado — `409` depois que algum participante saiu de `pending` |
 | POST   | `/activities/:id/start-all`                         | Inicia todos os participantes ainda não iniciados             | Mobile  | ✅ implementado     |
@@ -272,12 +272,15 @@ Status de participante: `pending` → `inProgress` (opcional, via `start-all`) �
 
 ### Medications
 
-| Método | Endpoint                      | Descrição                            | Cliente | Observação                                  |
-| ------ | ------------------------------- | ---------------------------------------- | ------- | ---------------------------------------------- |
-| GET    | `/medications`                | Lista (`?residentId=`, `?clinicId=`) | Ambos   |                                              |
-| POST   | `/medications`                | Cadastrar prescrição                 | Ambos   |                                              |
-| PATCH  | `/medications/:id`            | Editar prescrição                    | Ambos   |                                              |
-| PATCH  | `/medications/:id/deactivate` | Encerrar tratamento                  | Ambos   | preferir isso a `DELETE` — mantém histórico |
+Uma prescrição é de um idoso. A permissão é a mesma do perfil do idoso: enquanto ele não tem clínica, quem cadastra e edita é o responsável (inclusive os medicamentos do autocadastro); depois do vínculo, qualquer colaborador da clínica. Quem vê o idoso vê as prescrições dele — inclusive a equipe de uma clínica contatada, na revisão da solicitação de vínculo. Encerrar o tratamento (`deactivate`) guarda a prescrição como histórico e fecha `endDate` em agora (se ainda estava aberto ou no futuro); prescrição encerrada não é mais editada (`409`). Uma dose agendada é uma `Activity` do tipo `medication` com `medicationId`.
+
+| Método | Endpoint                      | Descrição                                               | Cliente | Observação                                  |
+| ------ | ----------------------------- | ------------------------------------------------------- | ------- | ------------------------------------------- |
+| GET    | `/medications`                | Lista (`?residentId=`, `?clinicId=`, `?active=`)        | Ambos   | ✅ implementado — ativas primeiro, por nome |
+| POST   | `/medications`                | Cadastrar prescrição                                    | Ambos   | ✅ implementado — `startDate` padrão agora; sem `endDate` é tratamento contínuo |
+| GET    | `/medications/:id`            | Detalhe                                                 | Ambos   | ✅ implementado                             |
+| PATCH  | `/medications/:id`            | Editar prescrição                                       | Ambos   | ✅ implementado — `endDate: null` volta a ser contínuo |
+| PATCH  | `/medications/:id/deactivate` | Encerrar tratamento                                     | Ambos   | ✅ implementado — preferir isso a `DELETE`, mantém histórico |
 
 ### Health records
 

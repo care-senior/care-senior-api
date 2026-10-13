@@ -42,8 +42,8 @@ export class Activity {
   @Column({ name: 'photo_path', nullable: true })
   photoPath?: string;
 
-  @Column({ name: 'medication_id', nullable: true })
-  medicationId?: string;
+  @Column({ name: 'medication_id', type: 'uuid', nullable: true })
+  medicationId?: string | null;
 
   @ManyToOne(() => Medication, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'medication_id' })
