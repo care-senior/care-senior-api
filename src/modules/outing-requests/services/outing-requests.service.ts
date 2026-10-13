@@ -8,9 +8,16 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { paginate } from '../../../common/dto/paginated-response.dto.js';
-import { OutingRequestStatus, UserRole } from '../../../common/enums/index.js';
+import {
+  NotificationType,
+  OutingRequestStatus,
+  ROLES_THAT_MANAGE_REQUESTS,
+  UserRole,
+} from '../../../common/enums/index.js';
 import type { AuthenticatedUser } from '../../../common/types/authenticated-user.interface.js';
 import { containsPattern } from '../../../common/utils/like-pattern.js';
+import { NotifierService } from '../../notifications/services/notifier.service.js';
+import { formatDateTime } from '../../notifications/utils/notification-text.js';
 import { Resident } from '../../residents/entities/resident.entity.js';
 import { ResidentAccessService } from '../../residents/services/resident-access.service.js';
 import type { CreateOutingRequestDto } from '../dto/create-outing-request.dto.js';
@@ -30,6 +37,7 @@ export class OutingRequestsService {
     @InjectRepository(Resident)
     private readonly residentRepository: Repository<Resident>,
     private readonly residentAccess: ResidentAccessService,
+    private readonly notifier: NotifierService,
   ) {}
 
   async create(
@@ -73,9 +81,21 @@ export class OutingRequestsService {
         status: OutingRequestStatus.PENDING,
       }),
     );
-    return OutingRequestResponseDto.fromEntity(
-      await this.findOrThrow(saved.id),
+    const created = await this.findOrThrow(saved.id);
+    await this.notifier.notify(
+      {
+        type: NotificationType.GENERAL,
+        title: 'Nova solicitação de saída',
+        message: `${created.guardian.name} pediu a saída de ${resident.name} de ${formatDateTime(departureAt)} a ${formatDateTime(returnAt)}.`,
+      },
+      {
+        staffOf: {
+          clinicId: resident.clinicId,
+          staffRoles: ROLES_THAT_MANAGE_REQUESTS,
+        },
+      },
     );
+    return OutingRequestResponseDto.fromEntity(created);
   }
 
   async findAll(
@@ -229,7 +249,23 @@ export class OutingRequestsService {
     if (!affected) {
       throw new ConflictException(`Outing request ${id} was already answered`);
     }
-    return OutingRequestResponseDto.fromEntity(await this.findOrThrow(id));
+    const answered = await this.findOrThrow(id);
+    const when = formatDateTime(answered.departureAt);
+    await this.notifier.notify(
+      answer.status === OutingRequestStatus.APPROVED
+        ? {
+            type: NotificationType.GENERAL,
+            title: 'Saída aprovada',
+            message: `A saída de ${answered.resident.name} em ${when} foi aprovada.`,
+          }
+        : {
+            type: NotificationType.GENERAL,
+            title: 'Saída recusada',
+            message: `A saída de ${answered.resident.name} em ${when} foi recusada: ${answer.rejectionReason}`,
+          },
+      { guardiansOf: answered.residentId },
+    );
+    return OutingRequestResponseDto.fromEntity(answered);
   }
 
   private async findOrThrow(id: string): Promise<OutingRequest> {

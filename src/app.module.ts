@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller.js';
 import { ActivitiesModule } from './modules/activities/activities.module.js';
@@ -9,6 +10,8 @@ import { GuardiansModule } from './modules/guardians/guardians.module.js';
 import { HealthRecordsModule } from './modules/health-records/health-records.module.js';
 import { MedicationsModule } from './modules/medications/medications.module.js';
 import { MessagesModule } from './modules/messages/messages.module.js';
+import { NotificationsModule } from './modules/notifications/notifications.module.js';
+import { ActivityReminder } from './modules/notifications/entities/activity-reminder.entity.js';
 import { OutingRequestsModule } from './modules/outing-requests/outing-requests.module.js';
 import { ResidentsModule } from './modules/residents/residents.module.js';
 import { RoomsModule } from './modules/rooms/rooms.module.js';
@@ -48,12 +51,14 @@ const ENTITIES = [
   UserFeedback,
   AppNotification,
   NotificationRecipient,
+  ActivityReminder,
   AuthSession,
   AuthToken,
 ];
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnvironment }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
@@ -76,6 +81,7 @@ const ENTITIES = [
     HealthRecordsModule,
     MedicationsModule,
     MessagesModule,
+    NotificationsModule,
     OutingRequestsModule,
     ResidentsModule,
     RoomsModule,

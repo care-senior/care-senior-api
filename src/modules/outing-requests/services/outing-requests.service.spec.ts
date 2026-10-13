@@ -11,6 +11,7 @@ import {
   UserRole,
 } from '../../../common/enums/index.js';
 import type { AuthenticatedUser } from '../../../common/types/authenticated-user.interface.js';
+import { NotifierService } from '../../notifications/services/notifier.service.js';
 import { Resident } from '../../residents/entities/resident.entity.js';
 import { ResidentAccessService } from '../../residents/services/resident-access.service.js';
 import { OutingRequest } from '../entities/outing-request.entity.js';
@@ -18,6 +19,7 @@ import { OutingRequestsService } from './outing-requests.service.js';
 
 describe('OutingRequestsService', () => {
   let service: OutingRequestsService;
+  const notifier = { notify: vi.fn() };
   const outingRequestRepository = {
     findOne: vi.fn(),
     create: vi.fn((data: object) => data),
@@ -71,6 +73,7 @@ describe('OutingRequestsService', () => {
         },
         { provide: getRepositoryToken(Resident), useValue: residentRepository },
         { provide: ResidentAccessService, useValue: residentAccess },
+        { provide: NotifierService, useValue: notifier },
       ],
     }).compile();
     service = module.get(OutingRequestsService);

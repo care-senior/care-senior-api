@@ -22,6 +22,9 @@ const BLOOD_PRESSURE_RECORD_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0801';
 const GLUCOSE_RECORD_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0802';
 const FAMILY_MESSAGE_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0901';
 const CLINIC_MESSAGE_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0902';
+const OUTING_NOTIFICATION_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a1001';
+const FAMILY_MESSAGE_NOTIFICATION_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a1002';
+const CLINIC_MESSAGE_NOTIFICATION_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a1003';
 
 const STAFF = [
   [
@@ -44,6 +47,13 @@ function inDaysAt(days, time) {
 }
 
 const todayAt = (time) => inDaysAt(0, time);
+
+const formatDateTime = (isoDate) =>
+  new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(new Date(isoDate));
 
 export default async function seed(client) {
   const password = await argon2.hash(DEV_PASSWORD, { type: argon2.argon2id });
@@ -214,6 +224,48 @@ export default async function seed(client) {
       GUARDIAN_ID,
       NURSE_ID,
       todayAt('09:00'),
+      todayAt('09:05'),
+    ],
+  );
+
+  // The notifications the API would have sent for the outing request and the
+  // messages above.
+  await client.query(
+    `INSERT INTO app_notifications (id, type, title, message, created_at) VALUES
+       ($1, 'general', 'Nova solicitação de saída', $4, $5),
+       ($2, 'general', 'Novo recado sobre Maria Aparecida Souza',
+        'Fernanda Costa: Vou chegar um pouco atrasada na visita de hoje.', $6),
+       ($3, 'general', 'Novo recado sobre Maria Aparecida Souza',
+        'Juliana Martins: Sem problemas! Ela está no jardim esperando.', $7)
+     ON CONFLICT (id) DO NOTHING`,
+    [
+      OUTING_NOTIFICATION_ID,
+      FAMILY_MESSAGE_NOTIFICATION_ID,
+      CLINIC_MESSAGE_NOTIFICATION_ID,
+      `Fernanda Costa pediu a saída de Maria Aparecida Souza de ${formatDateTime(inDaysAt(4, '10:00'))} a ${formatDateTime(inDaysAt(4, '18:00'))}.`,
+      todayAt('08:30'),
+      todayAt('09:00'),
+      todayAt('09:05'),
+    ],
+  );
+  const [coordinatorId] = STAFF[0];
+  await client.query(
+    `INSERT INTO notification_recipients (notification_id, user_id, user_role, read_at) VALUES
+       ($1, $4, 'staff', NULL),
+       ($1, $5, 'staff', NULL),
+       ($2, $4, 'staff', NULL),
+       ($2, $5, 'staff', $8),
+       ($2, $6, 'staff', NULL),
+       ($3, $7, 'guardian', NULL)
+     ON CONFLICT (notification_id, user_id) DO NOTHING`,
+    [
+      OUTING_NOTIFICATION_ID,
+      FAMILY_MESSAGE_NOTIFICATION_ID,
+      CLINIC_MESSAGE_NOTIFICATION_ID,
+      coordinatorId,
+      NURSE_ID,
+      CAREGIVER_ID,
+      GUARDIAN_ID,
       todayAt('09:05'),
     ],
   );
