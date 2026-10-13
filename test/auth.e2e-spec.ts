@@ -26,7 +26,7 @@ describe('Auth (e2e)', () => {
   }
 
   describe('login', () => {
-    it('devolve os tokens e o perfil do colaborador', async () => {
+    it('returns tokens and the staff profile', async () => {
       const staff = await testApp.createStaffMember({
         role: StaffRole.COORDINATOR,
       });
@@ -49,7 +49,7 @@ describe('Auth (e2e)', () => {
       expect(response.body.user).not.toHaveProperty('cpf');
     });
 
-    it('recusa senha errada e conta ainda sem senha', async () => {
+    it('rejects a wrong password and an account without password', async () => {
       const staff = await testApp.createStaffMember();
       const invited = await testApp.createStaffMember({ password: null });
 
@@ -57,7 +57,7 @@ describe('Auth (e2e)', () => {
       await loginStaff(invited.email, 'any-password').expect(401);
     });
 
-    it('separa contas de colaborador e de responsável', async () => {
+    it('keeps staff and guardian accounts apart', async () => {
       const guardian = await testApp.createGuardian();
 
       await loginStaff(guardian.email).expect(401);
@@ -67,7 +67,7 @@ describe('Auth (e2e)', () => {
         .expect(200);
     });
 
-    it('valida o corpo da requisição', async () => {
+    it('validates the payload', async () => {
       const response = await http()
         .post(`${AUTH}/staff/login`)
         .send({ email: 'not-an-email', password: '' })
@@ -78,7 +78,7 @@ describe('Auth (e2e)', () => {
       );
     });
 
-    it('limita tentativas repetidas para o mesmo e-mail', async () => {
+    it('throttles repeated attempts for the same e-mail', async () => {
       const staff = await testApp.createStaffMember();
       for (let attempt = 0; attempt < 5; attempt++) {
         await loginStaff(staff.email, 'wrong-password').expect(401);
@@ -87,8 +87,8 @@ describe('Auth (e2e)', () => {
     });
   });
 
-  describe('sessão', () => {
-    it('protege as rotas com o access token', async () => {
+  describe('session', () => {
+    it('protects routes with the access token', async () => {
       const staff = await testApp.createStaffMember();
       const { body } = await loginStaff(staff.email);
 
@@ -100,7 +100,7 @@ describe('Auth (e2e)', () => {
       expect(me.body).toMatchObject({ id: staff.id, role: UserRole.STAFF });
     });
 
-    it('aceita um token assinado com JWT_SECRET no formato do guia', async () => {
+    it('accepts a token signed with JWT_SECRET as described in the guide', async () => {
       const staff = await testApp.createStaffMember({ role: StaffRole.NURSE });
       const token = new JwtService({ secret: process.env.JWT_SECRET }).sign({
         sub: staff.id,
@@ -114,7 +114,7 @@ describe('Auth (e2e)', () => {
         .expect(200);
     });
 
-    it('gira o refresh token e encerra a sessão quando um antigo é reapresentado', async () => {
+    it('rotates the refresh token and ends the session when an old one is replayed', async () => {
       const staff = await testApp.createStaffMember();
       const { body: login } = await loginStaff(staff.email);
 
@@ -134,7 +134,7 @@ describe('Auth (e2e)', () => {
         .expect(401);
     });
 
-    it('revoga a sessão no logout', async () => {
+    it('revokes the session on logout', async () => {
       const staff = await testApp.createStaffMember();
       const { body } = await loginStaff(staff.email);
 
@@ -148,7 +148,7 @@ describe('Auth (e2e)', () => {
         .expect(401);
     });
 
-    it('usa cookie httpOnly para o web app', async () => {
+    it('uses an httpOnly cookie for the web app', async () => {
       const staff = await testApp.createStaffMember();
       const agent = request.agent(testApp.app.getHttpServer());
 
@@ -176,7 +176,7 @@ describe('Auth (e2e)', () => {
     });
   });
 
-  describe('redefinição de senha', () => {
+  describe('password reset', () => {
     function lastResetToken() {
       const [mail] = testApp.mail.sendPasswordReset.mock.lastCall as [
         { resetUrl: string },
@@ -184,7 +184,7 @@ describe('Auth (e2e)', () => {
       return new URL(mail.resetUrl).searchParams.get('token')!;
     }
 
-    it('responde igual para e-mail desconhecido e não envia nada', async () => {
+    it('answers the same way for unknown e-mails and sends nothing', async () => {
       testApp.mail.sendPasswordReset.mockClear();
 
       await http()
@@ -194,7 +194,7 @@ describe('Auth (e2e)', () => {
       expect(testApp.mail.sendPasswordReset).not.toHaveBeenCalled();
     });
 
-    it('redefine a senha uma única vez e encerra as sessões', async () => {
+    it('resets the password once and ends existing sessions', async () => {
       const staff = await testApp.createStaffMember();
       const { body: session } = await loginStaff(staff.email);
 
@@ -221,7 +221,7 @@ describe('Auth (e2e)', () => {
       await loginStaff(staff.email, 'brand-new-password').expect(200);
     });
 
-    it('invalida o link anterior quando um novo é pedido', async () => {
+    it('invalidates older reset links when a new one is requested', async () => {
       const guardian = await testApp.createGuardian();
       const forgot = () =>
         http()

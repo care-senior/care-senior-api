@@ -30,13 +30,13 @@ export class SessionsService {
   async rotate(refreshToken: RefreshTokenPayload): Promise<AuthSession> {
     const session = await this.sessions.findOneBy({ id: refreshToken.sid });
     if (!session || session.revokedAt || session.expiresAt <= new Date()) {
-      throw new UnauthorizedException('Sessão expirada');
+      throw new UnauthorizedException('Session expired');
     }
-    // Refresh token já rotacionado sendo reapresentado: alguém pode ter uma
-    // cópia dele, então a sessão inteira é encerrada, não só esta requisição.
+    // A refresh token that was already rotated is being replayed: someone else
+    // may hold a copy, so the whole session is ended, not just this request.
     if (session.refreshTokenId !== refreshToken.jti) {
       await this.revoke(session.id);
-      throw new UnauthorizedException('Sessão expirada');
+      throw new UnauthorizedException('Session expired');
     }
 
     session.refreshTokenId = randomUUID();

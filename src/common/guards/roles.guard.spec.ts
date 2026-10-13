@@ -40,12 +40,12 @@ const guardian: AuthenticatedUser = {
 describe('RolesGuard', () => {
   const guard = new RolesGuard(new Reflector());
 
-  it('deixa passar qualquer usuário autenticado em rota sem @Roles', () => {
+  it('lets any authenticated user through a route without @Roles', () => {
     expect(guard.canActivate(contextFor(guardian))).toBe(true);
     expect(guard.canActivate(contextFor(caregiver))).toBe(true);
   });
 
-  it('exige um dos cargos de @Roles', () => {
+  it('requires one of the @Roles staff roles', () => {
     expect(
       guard.canActivate(contextFor(nurse, ROLES_THAT_MANAGE_REQUESTS)),
     ).toBe(true);
@@ -54,7 +54,7 @@ describe('RolesGuard', () => {
     ).toBe(false);
   });
 
-  it('recusa responsável em rota com @Roles', () => {
+  it('rejects guardians on a route with @Roles', () => {
     expect(
       guard.canActivate(contextFor(guardian, ROLES_THAT_MANAGE_REQUESTS)),
     ).toBe(false);

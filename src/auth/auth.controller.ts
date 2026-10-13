@@ -39,8 +39,7 @@ import {
 @ApiHeader({
   name: CLIENT_PLATFORM_HEADER,
   required: false,
-  description:
-    'O web app envia "web" para receber o refresh token num cookie httpOnly.',
+  description: 'Send "web" to receive the refresh token as an httpOnly cookie.',
 })
 @Controller('auth')
 export class AuthController {

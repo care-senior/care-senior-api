@@ -10,7 +10,7 @@ describe('parseDurationToMs', () => {
     expect(parseDurationToMs(duration)).toBe(expected);
   });
 
-  it.each(['15', 'm', '1.5h', '10w', ''])('recusa "%s"', (duration) => {
+  it.each(['15', 'm', '1.5h', '10w', ''])('rejects "%s"', (duration) => {
     expect(() => parseDurationToMs(duration)).toThrow(/Invalid duration/);
   });
 });

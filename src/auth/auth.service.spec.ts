@@ -60,7 +60,7 @@ describe('AuthService', () => {
         {
           provide: ConfigService,
           useValue: {
-            get: () => 'https://painel.caresenior.app/redefinir-senha',
+            get: () => 'https://app.caresenior.dev/redefinir-senha',
           },
         },
       ],
@@ -69,7 +69,7 @@ describe('AuthService', () => {
   });
 
   describe('login', () => {
-    it('abre a sessão e não devolve o hash da senha', async () => {
+    it('starts a session and never exposes the password hash', async () => {
       accounts.findByEmailWithPassword.mockResolvedValue(coordinator);
       passwords.verify.mockResolvedValue(true);
       sessions.start.mockResolvedValue({ id: 'session-1' });
@@ -81,7 +81,7 @@ describe('AuthService', () => {
 
       const result = await service.login(UserRole.STAFF, {
         email: coordinator.email,
-        password: 'senha-correta',
+        password: 'correct-password',
       });
 
       expect(result).toMatchObject({
@@ -95,23 +95,23 @@ describe('AuthService', () => {
       );
     });
 
-    it('verifica a senha mesmo quando a conta não existe', async () => {
+    it('still verifies a password when the account does not exist', async () => {
       accounts.findByEmailWithPassword.mockResolvedValue(null);
       passwords.verify.mockResolvedValue(false);
 
       await expect(
         service.login(UserRole.STAFF, {
           email: 'x@y.com',
-          password: 'qualquer',
+          password: 'any-password',
         }),
       ).rejects.toBeInstanceOf(UnauthorizedException);
-      expect(passwords.verify).toHaveBeenCalledWith(undefined, 'qualquer');
+      expect(passwords.verify).toHaveBeenCalledWith(undefined, 'any-password');
       expect(sessions.start).not.toHaveBeenCalled();
     });
   });
 
   describe('requestPasswordReset', () => {
-    it('não envia e-mail para conta inexistente', async () => {
+    it('sends nothing for an unknown e-mail', async () => {
       accounts.findByEmailWithPassword.mockResolvedValue(null);
 
       await service.requestPasswordReset(UserRole.STAFF, 'x@y.com');
@@ -120,10 +120,10 @@ describe('AuthService', () => {
       expect(mail.sendPasswordReset).not.toHaveBeenCalled();
     });
 
-    it('envia o link com o token e não propaga falha de SMTP', async () => {
+    it('e-mails the reset link and swallows SMTP failures', async () => {
       accounts.findByEmailWithPassword.mockResolvedValue(coordinator);
       oneTimeTokens.issue.mockResolvedValue('token-123');
-      mail.sendPasswordReset.mockRejectedValue(new Error('SMTP fora do ar'));
+      mail.sendPasswordReset.mockRejectedValue(new Error('SMTP is down'));
 
       await expect(
         service.requestPasswordReset(UserRole.STAFF, coordinator.email),
@@ -131,25 +131,27 @@ describe('AuthService', () => {
       expect(mail.sendPasswordReset).toHaveBeenCalledWith({
         to: coordinator.email,
         name: coordinator.name,
-        resetUrl:
-          'https://painel.caresenior.app/redefinir-senha?token=token-123',
+        resetUrl: 'https://app.caresenior.dev/redefinir-senha?token=token-123',
       });
     });
   });
 
-  it('resetPassword grava a nova senha e encerra todas as sessões', async () => {
+  it('resetPassword stores the new password and ends every session', async () => {
     oneTimeTokens.consume.mockResolvedValue({
       userId: 'staff-1',
       userRole: UserRole.STAFF,
     });
-    passwords.hash.mockResolvedValue('novo-hash');
+    passwords.hash.mockResolvedValue('new-hash');
 
-    await service.resetPassword({ token: 'token-123', password: 'nova-senha' });
+    await service.resetPassword({
+      token: 'token-123',
+      password: 'new-password',
+    });
 
     expect(accounts.updatePassword).toHaveBeenCalledWith(
       UserRole.STAFF,
       'staff-1',
-      'novo-hash',
+      'new-hash',
     );
     expect(sessions.revokeAllForUser).toHaveBeenCalledWith(
       'staff-1',

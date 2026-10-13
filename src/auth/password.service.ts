@@ -18,8 +18,8 @@ export class PasswordService {
     passwordHash: string | null | undefined,
     password: string,
   ): Promise<boolean> {
-    // Contas inexistentes ou ainda sem senha pagam o custo de uma verificação
-    // real, para que o tempo de resposta não revele quais e-mails existem.
+    // Accounts that don't exist or have no password yet still pay the cost of
+    // a real verification, so response time doesn't reveal registered e-mails.
     const hashToCheck = passwordHash ?? (await this.placeholderHash);
     const matches = await argon2
       .verify(hashToCheck, password)

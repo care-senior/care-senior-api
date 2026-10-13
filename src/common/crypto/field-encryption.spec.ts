@@ -1,22 +1,22 @@
 import { randomBytes } from 'node:crypto';
 import { decryptField, encryptField } from './field-encryption.js';
 
-describe('criptografia de campo', () => {
+describe('field encryption', () => {
   const key = randomBytes(32);
 
-  it('recupera o valor original', () => {
+  it('round-trips the value', () => {
     expect(decryptField(encryptField('123.456.789-09', key), key)).toBe(
       '123.456.789-09',
     );
   });
 
-  it('nunca gera o mesmo texto cifrado duas vezes', () => {
+  it('never produces the same ciphertext twice', () => {
     expect(encryptField('123.456.789-09', key)).not.toBe(
       encryptField('123.456.789-09', key),
     );
   });
 
-  it('falha com outra chave ou valor adulterado', () => {
+  it('fails with another key or a tampered value', () => {
     const stored = encryptField('123.456.789-09', key);
     const [version, iv, tag] = stored.split(':');
 
@@ -29,7 +29,7 @@ describe('criptografia de campo', () => {
     ).toThrow();
   });
 
-  it('recusa formatos desconhecidos', () => {
+  it('rejects unknown formats', () => {
     expect(() => decryptField('plain-cpf', key)).toThrow(
       'Unsupported encrypted field format',
     );

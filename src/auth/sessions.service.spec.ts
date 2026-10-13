@@ -49,7 +49,7 @@ describe('SessionsService', () => {
     service = module.get(SessionsService);
   });
 
-  it('gira o identificador do refresh token', async () => {
+  it('rotates the refresh token id', async () => {
     sessionRepository.findOneBy.mockResolvedValue(activeSession());
 
     const rotated = await service.rotate(refreshToken('token-1'));
@@ -58,11 +58,11 @@ describe('SessionsService', () => {
     expect(sessionRepository.update).not.toHaveBeenCalled();
   });
 
-  it('revoga a sessão quando um refresh token antigo é reapresentado', async () => {
+  it('revokes the session when an old refresh token is replayed', async () => {
     sessionRepository.findOneBy.mockResolvedValue(activeSession());
 
     await expect(
-      service.rotate(refreshToken('token-antigo')),
+      service.rotate(refreshToken('old-token')),
     ).rejects.toBeInstanceOf(UnauthorizedException);
     expect(sessionRepository.update).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'session-1' }),
@@ -70,7 +70,7 @@ describe('SessionsService', () => {
     );
   });
 
-  it('recusa sessão revogada ou expirada', async () => {
+  it('rejects a revoked or expired session', async () => {
     sessionRepository.findOneBy.mockResolvedValueOnce({
       ...activeSession(),
       revokedAt: new Date(),

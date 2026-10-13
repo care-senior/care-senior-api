@@ -98,7 +98,7 @@ export class JwtTokensService {
     try {
       return await this.jwt.verifyAsync<T>(token, { secret });
     } catch {
-      throw new UnauthorizedException('Token inválido ou expirado');
+      throw new UnauthorizedException('Invalid or expired token');
     }
   }
 }

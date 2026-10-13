@@ -3,9 +3,10 @@ import { API_PREFIX } from '../configure-app.js';
 
 export const REFRESH_TOKEN_COOKIE = 'care_senior_refresh_token';
 
-// Exceção documentada à regra "nunca ramificar por cliente" (guia, seção 4):
-// o header só escolhe como o refresh token é entregue ao web (cookie
-// httpOnly em vez do body). Nunca decide autorização nem regra de negócio.
+// Documented exception to "never branch on the client" (guide, section 4):
+// this header only picks how the refresh token is delivered to the web app
+// (httpOnly cookie instead of the body). It never drives authorization or
+// business rules.
 export const CLIENT_PLATFORM_HEADER = 'x-client-platform';
 const WEB_PLATFORM = 'web';
 

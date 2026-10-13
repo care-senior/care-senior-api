@@ -46,7 +46,7 @@ export class AuthService {
       password,
     );
     if (!account || !isValid) {
-      throw new UnauthorizedException('Credenciais inválidas');
+      throw new UnauthorizedException('Invalid credentials');
     }
 
     const { passwordHash: _, ...accountWithoutPassword } = account;
@@ -66,7 +66,7 @@ export class AuthService {
     );
     if (!account) {
       await this.sessions.revoke(session.id);
-      throw new UnauthorizedException('Sessão expirada');
+      throw new UnauthorizedException('Session expired');
     }
     return this.buildAuthResult(account, session);
   }
@@ -83,7 +83,7 @@ export class AuthService {
       currentUser.role,
       currentUser.id,
     );
-    if (!account) throw new UnauthorizedException('Sessão expirada');
+    if (!account) throw new UnauthorizedException('Session expired');
     return AuthUserDto.fromAccount(account);
   }
 
@@ -99,8 +99,8 @@ export class AuthService {
     const resetUrl = new URL(this.passwordResetUrl);
     resetUrl.searchParams.set('token', token);
 
-    // A resposta não pode depender de o e-mail existir, então uma falha no
-    // envio é registrada no log em vez de virar erro para quem chamou.
+    // The response must not depend on whether the e-mail exists, so a mail
+    // failure is logged instead of surfacing as an error to the caller.
     await this.mail
       .sendPasswordReset({
         to: account.email,
@@ -109,7 +109,7 @@ export class AuthService {
       })
       .catch((error: unknown) => {
         this.logger.error(
-          `Falha ao enviar redefinição de senha para ${account.id}`,
+          `Password reset e-mail to ${account.id} failed`,
           error,
         );
       });

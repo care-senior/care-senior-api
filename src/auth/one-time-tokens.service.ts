@@ -64,7 +64,7 @@ export class OneTimeTokensService {
       .execute();
 
     const [owner] = result.raw as { user_id: string; user_role: UserRole }[];
-    if (!owner) throw new BadRequestException('Token inválido ou expirado');
+    if (!owner) throw new BadRequestException('Invalid or expired token');
     return { userId: owner.user_id, userRole: owner.user_role };
   }
 }
