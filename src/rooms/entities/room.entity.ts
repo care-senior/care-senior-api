@@ -28,8 +28,8 @@ export class Room {
   @Column()
   floor!: string;
 
-  @Column({ nullable: true })
-  wing?: string;
+  @Column({ type: 'varchar', nullable: true })
+  wing?: string | null;
 
   @Column({ type: 'int' })
   capacity!: number;

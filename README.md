@@ -32,7 +32,7 @@ src/
  ├── common/enums/       # Enums compartilhados entre entidades (ActivityType, StaffRole, ...)
  ├── common/crypto/      # Criptografia de campos sensíveis (CPF)
  ├── clinics/
- ├── rooms/              # Sem equivalente no app mobile — só backend/web app
+ ├── rooms/              # O mobile só lista quartos pra escolher onde colocar o idoso
  ├── staff/
  ├── guardians/
  ├── residents/
@@ -76,7 +76,7 @@ Coisas que não ficam óbvias só olhando os campos:
 | Onde                                                    | Por quê                                                                                                                                                                   |
 | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Clinic.activities` vs. `Clinic.scheduledActivities`    | O primeiro é texto livre dos serviços oferecidos; o segundo aponta pra agenda (`Activity`). Nomes diferentes de propósito.                                                |
-| `Room`, `Routine`                                       | Sem equivalente no app mobile — existem só pro backend/web app. O mobile continua vendo `Resident.roomNumber` como texto solto e nunca enxerga uma `Routine`.             |
+| `Room`, `Routine`                                       | Sem tela própria no app mobile — a gestão é do web app. O mobile só lista quartos com leito livre ao vincular ou cadastrar um idoso, continua exibindo `Resident.roomNumber` e nunca enxerga uma `Routine`. |
 | `Resident.roomNumber`                                   | É um _getter_ (`room?.number`), não uma coluna — mantém o contrato do mobile sem duplicar o dado de `Resident.room`. Toda resposta de idoso traz `roomNumber` (nulo sem vínculo). |
 | `Resident.healthNotes`                                  | Opcional: o cadastro walk-in não pede anotações de saúde. Nulo até alguém preencher. |
 | `Resident.clinicId` / `roomId`                          | Nulos antes do primeiro vínculo e depois de uma desvinculação/alta. Histórico e responsáveis continuam existindo mesmo sem clínica.                                       |
@@ -120,7 +120,7 @@ docker compose run --rm api-dev npm run test:e2e
 
 ## O que falta implementar
 
-Hoje existem as entidades TypeORM, o schema SQL, a autenticação (`/auth`) e os módulos de clinics, staff, guardians e residents — as rotas prontas estão marcadas com ✅ nas tabelas abaixo; os demais domínios ainda não têm service, controller ou endpoint. O contrato de API abaixo é o mapeamento pra atender os dois clientes (mobile + web) sobre a mesma base de dados; "Cliente" na última coluna indica quem consome cada rota hoje, só pra saber o que quebra se o contrato mudar.
+Hoje existem as entidades TypeORM, o schema SQL, a autenticação (`/auth`) e os módulos de clinics, staff, guardians, residents e rooms — as rotas prontas estão marcadas com ✅ nas tabelas abaixo; os demais domínios ainda não têm service, controller ou endpoint. O contrato de API abaixo é o mapeamento pra atender os dois clientes (mobile + web) sobre a mesma base de dados; "Cliente" na última coluna indica quem consome cada rota hoje, só pra saber o que quebra se o contrato mudar.
 
 Além dos endpoints, faltam os medicamentos informados no autocadastro e no cadastro walk-in, que entram com o módulo de medications, e o upload de fotos (`photoPath`).
 
@@ -213,12 +213,15 @@ O responsável vê os próprios idosos, vinculados ou não. Um colaborador vê o
 
 ### Rooms
 
-| Método | Endpoint     | Descrição                                         | Cliente | Observação     |
-| ------ | ------------- | ----------------------------------------------------- | ------- | --------------- |
-| GET    | `/rooms`     | Lista (`?clinicId=`, `?status=vacant\|occupied`)  | Web     | tela "Quartos" |
-| POST   | `/rooms`     | Cadastrar quarto (número, andar, ala, capacidade) | Web     |                 |
-| GET    | `/rooms/:id` | Detalhe                                           | Web     |                 |
-| PATCH  | `/rooms/:id` | Editar quarto                                     | Web     |                 |
+Só colaboradores, e só os quartos da própria clínica. Cada quarto vem com os ocupantes atuais (nome e idade), `freeBeds` e `status`: `vacant` quando tem pelo menos um leito livre (é o filtro dos modais de vínculo e troca de quarto), `occupied` quando está lotado. A capacidade nunca fica abaixo do número de ocupantes, e o número do quarto é único na clínica (`409` nos dois casos).
+
+| Método | Endpoint     | Descrição                                                    | Cliente | Observação                                                       |
+| ------ | ------------ | ------------------------------------------------------------ | ------- | ---------------------------------------------------------------- |
+| GET    | `/rooms`     | Lista (`?clinicId=`, `?status=vacant\|occupied`), paginada   | Ambos   | ✅ implementado — tela "Quartos" e escolha de quarto no vínculo/walk-in |
+| POST   | `/rooms`     | Cadastrar quarto (número, andar, ala, capacidade)            | Web     | ✅ implementado — `@Roles(COORDINATOR, NURSE)`                    |
+| GET    | `/rooms/:id` | Detalhe                                                      | Web     | ✅ implementado                                                   |
+| PATCH  | `/rooms/:id` | Editar quarto                                                | Web     | ✅ implementado — `@Roles(COORDINATOR, NURSE)`                    |
+| DELETE | `/rooms/:id` | Remover quarto vazio                                         | Web     | ✅ implementado — `@Roles(COORDINATOR, NURSE)`; com idoso dentro, `409`; `204` |
 
 ### Activities
 
