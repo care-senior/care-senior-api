@@ -2,7 +2,7 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module.js';
-import { CLIENT_PLATFORM_HEADER } from './auth/refresh-token-cookie.js';
+import { CLIENT_PLATFORM_HEADER } from './modules/auth/utils/refresh-token-cookie.js';
 import type { Environment } from './config/environment.js';
 import { configureApp, DOCS_PATH } from './configure-app.js';
 

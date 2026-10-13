@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
-import { JwtTokensService } from '../../auth/jwt-tokens.service.js';
+import { JwtTokensService } from '../../modules/auth/services/jwt-tokens.service.js';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator.js';
 import type { AuthenticatedUser } from '../types/authenticated-user.interface.js';
 

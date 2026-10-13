@@ -19,36 +19,53 @@ O domínio gira em torno de uma clínica que cuida de idosos (`Resident`), cada 
 
 ## Como o código está organizado
 
-Um módulo por área de domínio, cada um com sua(s) entidade(s) em `entities/`:
+Um módulo por área de domínio em `src/modules/`; o que é compartilhado entre módulos fica em `src/common/`, e integração com serviço externo em `src/infra/`:
 
 ```
 db/
- ├── migrations/         # Schema real do Postgres: NNNN_descricao.sql, aplicados em ordem
- └── seeds/              # Dados de desenvolvimento (clínica, equipe e responsável de exemplo)
+ ├── migrations/            # Schema real do Postgres: NNNN_descricao.sql, aplicados em ordem
+ └── seeds/                 # Dados de desenvolvimento (clínica, equipe, responsáveis, atividades)
 src/
- ├── auth/               # Login, sessões (JWT), recuperação de senha e guards globais
- ├── mail/               # Envio de e-mail via SMTP
- ├── config/             # Validação das variáveis de ambiente
- ├── common/enums/       # Enums compartilhados entre entidades (ActivityType, StaffRole, ...)
- ├── common/crypto/      # Criptografia de campos sensíveis (CPF)
- ├── clinics/
- ├── rooms/              # O mobile só lista quartos pra escolher onde colocar o idoso
- ├── staff/
- ├── guardians/
- ├── residents/
- ├── outing-requests/
- ├── activities/
- ├── routines/           # Sem equivalente no app mobile — só backend/web app
- ├── medications/
- ├── health-records/
- ├── messages/
- ├── feedback/
- ├── notifications/
- ├── app.module.ts       # Composition root: registra TypeORM e a config global
- └── main.ts
+ ├── main.ts
+ ├── app.module.ts          # Composition root: registra TypeORM, a config global e os módulos
+ ├── app.controller.ts      # GET / → redireciona pra documentação
+ ├── configure-app.ts       # Prefixo, ValidationPipe e cookies — reaproveitado pelos testes e2e
+ ├── config/                # Validação das variáveis de ambiente
+ ├── common/                # Compartilhado: decorators, guards globais, DTOs de paginação, enums, validators, utils, crypto
+ ├── infra/
+ │   └── mail/              # Envio de e-mail via SMTP
+ └── modules/
+     ├── auth/              # Login, sessões (JWT), senha, convite e autocadastro
+     ├── clinics/
+     ├── staff/
+     ├── guardians/
+     ├── residents/
+     ├── rooms/             # O mobile só lista quartos pra escolher onde colocar o idoso
+     ├── activities/
+     ├── routines/          # Sem equivalente no app mobile — só backend/web app
+     ├── medications/
+     ├── health-records/
+     ├── outing-requests/
+     ├── messages/
+     ├── feedback/
+     └── notifications/
 ```
 
-Cada entidade mapeia 1:1 com as tabelas descritas no [README do app mobile](../care_senior_study/README.md), que é a referência de produto por trás de todo esse modelo. A partir daqui, o padrão NestJS de sempre se aplica: cada módulo cresce com `*.service.ts`, `*.controller.ts` e DTOs conforme os casos de uso são implementados, sempre lendo/gravando através da entidade correspondente. Não há migrations geradas pelo ORM — o schema real do Postgres vem dos scripts SQL em `db/migrations` (por isso `synchronize` fica sempre `false` em `app.module.ts`). Toda mudança de entidade vem acompanhada de um novo script `NNNN_descricao.sql`; scripts já aplicados nunca são editados. Os tipos enum do Postgres têm nome próprio (`staff_role`, `user_role`, ...) e as entidades apontam pra eles com `enumName`.
+Dentro de cada módulo, só o `x.module.ts` fica na raiz; o resto vai numa pasta por tipo, criada só quando o módulo tem arquivo daquele tipo:
+
+```
+src/modules/rooms/
+ ├── rooms.module.ts
+ ├── controllers/           # rooms.controller.ts
+ ├── services/              # rooms.service.ts + rooms.service.spec.ts (teste unitário ao lado)
+ ├── dto/                   # create-room.dto.ts, update-room.dto.ts, query-rooms.dto.ts, room-response.dto.ts
+ ├── entities/              # room.entity.ts
+ ├── enums/                 # enums só deste módulo (room-status.enum.ts)
+ ├── guards/                # guards só deste módulo (ex.: auth/guards/auth-throttler.guard.ts)
+ └── utils/                 # funções auxiliares que não são service (room-occupancy.ts)
+```
+
+Cada entidade mapeia 1:1 com as tabelas descritas no [README do app mobile](../care_senior_study/README.md), que é a referência de produto por trás de todo esse modelo. A partir daqui, o padrão NestJS de sempre se aplica: cada módulo cresce com services, controllers e DTOs (nas pastas acima) conforme os casos de uso são implementados, sempre lendo/gravando através da entidade correspondente. Não há migrations geradas pelo ORM — o schema real do Postgres vem dos scripts SQL em `db/migrations` (por isso `synchronize` fica sempre `false` em `app.module.ts`). Toda mudança de entidade vem acompanhada de um novo script `NNNN_descricao.sql`; scripts já aplicados nunca são editados. Os tipos enum do Postgres têm nome próprio (`staff_role`, `user_role`, ...) e as entidades apontam pra eles com `enumName`.
 
 ## Entidades
 
