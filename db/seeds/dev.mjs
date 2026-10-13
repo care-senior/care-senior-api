@@ -25,6 +25,8 @@ const CLINIC_MESSAGE_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0902';
 const OUTING_NOTIFICATION_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a1001';
 const FAMILY_MESSAGE_NOTIFICATION_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a1002';
 const CLINIC_MESSAGE_NOTIFICATION_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a1003';
+const FAMILY_FEEDBACK_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a1101';
+const STAFF_FEEDBACK_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a1102';
 
 const STAFF = [
   [
@@ -267,6 +269,25 @@ export default async function seed(client) {
       CAREGIVER_ID,
       GUARDIAN_ID,
       todayAt('09:05'),
+    ],
+  );
+
+  await client.query(
+    `INSERT INTO user_feedback (id, author_id, author_name, author_role, rating,
+       message, clinic_ids, sent_at) VALUES
+       ($1, $3, 'Fernanda Costa', 'guardian', 5,
+        'Consigo acompanhar a rotina da minha mãe mesmo trabalhando.', $5, $6),
+       ($2, $4, 'Bruno Kanashiro', 'staff', 4,
+        'Registrar as atividades em lote ajuda muito no plantão.', $5, $7)
+     ON CONFLICT (id) DO NOTHING`,
+    [
+      FAMILY_FEEDBACK_ID,
+      STAFF_FEEDBACK_ID,
+      GUARDIAN_ID,
+      CAREGIVER_ID,
+      [CLINIC_ID],
+      inDaysAt(-2, '20:15'),
+      inDaysAt(-1, '14:40'),
     ],
   );
 }

@@ -194,6 +194,11 @@ export async function createTestApp(): Promise<TestApp> {
         [guardianIds, createdClinicIds],
       );
       await dataSource.query(
+        `DELETE FROM user_feedback WHERE author_id = ANY($1)
+           OR author_id IN (SELECT id FROM staff_members WHERE clinic_id = ANY($2))`,
+        [guardianIds, createdClinicIds],
+      );
+      await dataSource.query(
         'DELETE FROM outing_requests WHERE guardian_id = ANY($1)',
         [guardianIds],
       );

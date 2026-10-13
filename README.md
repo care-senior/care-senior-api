@@ -107,6 +107,7 @@ Coisas que não ficam óbvias só olhando os campos:
 | `Routine.residents` / `rooms`                           | Só preenchidos conforme `Routine.scope`. `active = false` só pausa a geração de novas atividades, não apaga histórico.                                                    |
 | `Medication.endDate`                                    | Nulo significa tratamento contínuo, sem previsão de término.                                                                                                              |
 | `UserFeedback.authorId`, `NotificationRecipient.userId` | FKs polimórficas (`StaffMember` ou `Guardian`, conforme `authorRole`/`userRole`) — sem relação direta possível no TypeORM, resolvidas na camada de aplicação.             |
+| `UserFeedback.clinicIds`                                | Fotografia das clínicas do autor no envio (`uuid[]`, sem FK): o feedback é sobre o app, mas cada clínica vê o de quem é dela. Um idoso que muda de clínica depois não leva o feedback antigo junto. |
 | `NotificationRecipient`                                 | Substitui o `audience` genérico do mock original: como leitura é por usuário, cada destinatário tem sua própria linha e seu próprio `readAt`.                             |
 | `StaffRole`                                             | Só `COORDINATOR`/`NURSE` (`ROLES_THAT_MANAGE_REQUESTS`) aprovam/recusam solicitações e desvinculam idosos — `CAREGIVER` não.                                              |
 | `StaffMember.cpf`, `Guardian.cpf`                       | Criptografados em repouso (AES-256-GCM, chave em `CPF_ENCRYPTION_KEY`) via transformer da coluna. Como cada gravação gera um texto cifrado diferente, não dá pra buscar nem impor unicidade por CPF no banco. A API valida os dígitos verificadores, grava só os 11 dígitos e nunca devolve o CPF inteiro — as respostas trazem `maskedCpf` (`•••.•••.•••-25`). |
@@ -124,7 +125,7 @@ docker compose run --rm api-dev npm run db:migrate
 docker compose run --rm api-dev npm run db:seed
 ```
 
-O seed cria a clínica "Residencial Vida Plena" com uma coordenadora (`coordenadora@caresenior.dev`), uma enfermeira (`enfermeira@caresenior.dev`), um cuidador (`cuidador@caresenior.dev`) e uma responsável (`responsavel@caresenior.dev`), todos com a senha `careSenior123`, além de um medicamento da idosa Maria (Losartana) e três atividades de hoje dela (a dose da Losartana e o café concluídos, a fisioterapia pendente) de duas medições de hoje (pressão e glicose), de uma troca de recados com a família, de uma solicitação de saída pendente dela e de uma solicitação de vínculo pendente (`vinculo-pendente@caresenior.dev`). Os e-mails enviados pela API (recuperação de senha) aparecem no Mailpit em `http://localhost:8025` — use `SMTP_HOST=mailpit` e `SMTP_PORT=1025` no `.env`.
+O seed cria a clínica "Residencial Vida Plena" com uma coordenadora (`coordenadora@caresenior.dev`), uma enfermeira (`enfermeira@caresenior.dev`), um cuidador (`cuidador@caresenior.dev`) e uma responsável (`responsavel@caresenior.dev`), todos com a senha `careSenior123`, além de um medicamento da idosa Maria (Losartana) e três atividades de hoje dela (a dose da Losartana e o café concluídos, a fisioterapia pendente) de duas medições de hoje (pressão e glicose), de uma troca de recados com a família, de uma solicitação de saída pendente dela, de dois feedbacks do app e de uma solicitação de vínculo pendente (`vinculo-pendente@caresenior.dev`). Os e-mails enviados pela API (recuperação de senha) aparecem no Mailpit em `http://localhost:8025` — use `SMTP_HOST=mailpit` e `SMTP_PORT=1025` no `.env`.
 
 `DB_HOST` no `.env` aponta pro nome do serviço (`db`), não `localhost` — de dentro do container da API, `localhost` seria o próprio container.
 
@@ -140,7 +141,7 @@ docker compose run --rm api-dev npm run test:e2e
 
 ## O que falta implementar
 
-Hoje existem as entidades TypeORM, o schema SQL, a autenticação (`/auth`) e os módulos de clinics, staff, guardians, residents, rooms, activities, medications, outing-requests, health-records, messages e notifications — as rotas prontas estão marcadas com ✅ nas tabelas abaixo; os demais domínios ainda não têm service, controller ou endpoint. O contrato de API abaixo é o mapeamento pra atender os dois clientes (mobile + web) sobre a mesma base de dados; "Cliente" na última coluna indica quem consome cada rota hoje, só pra saber o que quebra se o contrato mudar.
+Hoje existem as entidades TypeORM, o schema SQL, a autenticação (`/auth`) e os módulos de clinics, staff, guardians, residents, rooms, activities, medications, outing-requests, health-records, messages, notifications e feedback — as rotas prontas estão marcadas com ✅ nas tabelas abaixo; os demais domínios ainda não têm service, controller ou endpoint. O contrato de API abaixo é o mapeamento pra atender os dois clientes (mobile + web) sobre a mesma base de dados; "Cliente" na última coluna indica quem consome cada rota hoje, só pra saber o que quebra se o contrato mudar.
 
 Além dos endpoints, falta o upload de fotos (`photoPath`). Os medicamentos informados no autocadastro e no cadastro walk-in não têm rota própria: o app chama `POST /medications` uma vez por medicamento logo depois de criar o idoso.
 
@@ -318,10 +319,12 @@ Recados entre a família e a clínica sobre um idoso — lista simples, sem temp
 
 ### Feedback
 
-| Método | Endpoint    | Descrição                | Cliente | Observação        |
-| ------ | ------------ | ---------------------------- | ------- | -------------------- |
-| GET    | `/feedback` | Lista (`?clinicId=`)     | Web     | tela "Relatórios" |
-| POST   | `/feedback` | Enviar feedback           | Mobile  |                    |
+Avaliação do app (nota de 1 a 5 e mensagem), enviada por qualquer colaborador ou responsável; autor e nome vêm da conta autenticada. Cada feedback guarda, no envio, as clínicas de quem enviou (`clinicIds`, coluna interna que não sai na resposta): a clínica do colaborador, ou as clínicas dos idosos do responsável naquele momento — o responsável sem idoso vinculado não chega a nenhuma clínica. Coordenadora e enfermeira leem o feedback da própria clínica.
+
+| Método | Endpoint    | Descrição                                      | Cliente | Observação        |
+| ------ | ----------- | ---------------------------------------------- | ------- | ----------------- |
+| GET    | `/feedback` | Lista (`?clinicId=`, `?authorRole=`), mais recente primeiro | Web     | ✅ implementado — `@Roles(COORDINATOR, NURSE)`, só a própria clínica; tela "Relatórios" |
+| POST   | `/feedback` | Enviar feedback (`rating`, `message`)          | Mobile  | ✅ implementado |
 
 ### Notifications
 
