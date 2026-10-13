@@ -107,7 +107,7 @@ O seed cria a clínica "Residencial Vida Plena" com uma coordenadora (`coordenad
 
 `DB_HOST` no `.env` aponta pro nome do serviço (`db`), não `localhost` — de dentro do container da API, `localhost` seria o próprio container.
 
-Todas as rotas ficam sob `/api/v1`. Documentação interativa da API (Swagger/OpenAPI, gerada automaticamente a partir dos DTOs) fica em `http://localhost:3000/api/docs` e a spec em JSON em `http://localhost:3000/api/docs-json`.
+Todas as rotas ficam sob `/api/v1`. Documentação interativa da API (Swagger/OpenAPI, gerada automaticamente a partir dos DTOs) fica em `http://localhost:3000/api/docs` — abrir `http://localhost:3000` já redireciona pra lá — e a spec em JSON em `http://localhost:3000/api/docs-json`.
 
 A imagem da `api` só tem dependências de produção; lint e testes rodam no serviço `api-dev`, que reaproveita o estágio de build com as devDependencies:
 
