@@ -14,7 +14,10 @@ export const TEST_PASSWORD = 'correct-horse-battery';
 export interface TestApp {
   app: INestApplication;
   dataSource: DataSource;
-  mail: { sendPasswordReset: ReturnType<typeof vi.fn> };
+  mail: {
+    sendPasswordReset: ReturnType<typeof vi.fn>;
+    sendInvite: ReturnType<typeof vi.fn>;
+  };
   createClinic(options?: { name?: string; address?: string }): Promise<string>;
   createStaffMember(options?: {
     clinicId?: string;
@@ -33,7 +36,10 @@ function uniqueEmail(prefix: string) {
 }
 
 export async function createTestApp(): Promise<TestApp> {
-  const mail = { sendPasswordReset: vi.fn().mockResolvedValue(undefined) };
+  const mail = {
+    sendPasswordReset: vi.fn().mockResolvedValue(undefined),
+    sendInvite: vi.fn().mockResolvedValue(undefined),
+  };
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(MailService)
     .useValue(mail)
@@ -107,12 +113,14 @@ export async function createTestApp(): Promise<TestApp> {
     },
 
     async close() {
-      await dataSource.query(
-        `DELETE FROM auth_sessions WHERE user_id IN (
-           SELECT id FROM staff_members WHERE clinic_id = ANY($1)
-           UNION SELECT unnest($2::uuid[]))`,
-        [createdClinicIds, createdGuardianIds],
-      );
+      for (const table of ['auth_sessions', 'auth_tokens']) {
+        await dataSource.query(
+          `DELETE FROM ${table} WHERE user_id IN (
+             SELECT id FROM staff_members WHERE clinic_id = ANY($1)
+             UNION SELECT unnest($2::uuid[]))`,
+          [createdClinicIds, createdGuardianIds],
+        );
+      }
       await dataSource.query('DELETE FROM guardians WHERE id = ANY($1)', [
         createdGuardianIds,
       ]);

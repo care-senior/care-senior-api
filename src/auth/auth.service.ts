@@ -1,10 +1,16 @@
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AuthTokenPurpose, UserRole } from '../common/enums/index.js';
 import type { AuthenticatedUser } from '../common/types/authenticated-user.interface.js';
 import type { Environment } from '../config/environment.js';
 import { MailService } from '../mail/mail.service.js';
 import { AccountsService, type Account } from './accounts.service.js';
+import type { AcceptInviteDto } from './dto/accept-invite.dto.js';
 import type { AuthResponseDto } from './dto/auth-response.dto.js';
 import { AuthUserDto } from './dto/auth-user.dto.js';
 import type { LoginDto } from './dto/login.dto.js';
@@ -126,6 +132,22 @@ export class AuthService {
       await this.passwords.hash(password),
     );
     await this.sessions.revokeAllForUser(owner.userId, owner.userRole);
+  }
+
+  async acceptInvite(role: UserRole, { token, password }: AcceptInviteDto) {
+    const owner = await this.oneTimeTokens.consume(
+      token,
+      AuthTokenPurpose.INVITE,
+      role,
+    );
+    const account = await this.accounts.findById(role, owner.userId);
+    if (!account) throw new BadRequestException('Invalid or expired token');
+
+    await this.accounts.updatePassword(
+      role,
+      account.id,
+      await this.passwords.hash(password),
+    );
   }
 
   private async buildAuthResult(

@@ -1,4 +1,4 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { StaffRole, UserRole } from '../common/enums/index.js';
@@ -133,6 +133,49 @@ describe('AuthService', () => {
         name: coordinator.name,
         resetUrl: 'https://app.caresenior.dev/redefinir-senha?token=token-123',
       });
+    });
+  });
+
+  describe('acceptInvite', () => {
+    it('sets the password of the invited account', async () => {
+      oneTimeTokens.consume.mockResolvedValue({
+        userId: 'staff-1',
+        userRole: UserRole.STAFF,
+      });
+      accounts.findById.mockResolvedValue(coordinator);
+      passwords.hash.mockResolvedValue('new-hash');
+
+      await service.acceptInvite(UserRole.STAFF, {
+        token: 'invite-token',
+        password: 'new-password',
+      });
+
+      expect(oneTimeTokens.consume).toHaveBeenCalledWith(
+        'invite-token',
+        'invite',
+        UserRole.STAFF,
+      );
+      expect(accounts.updatePassword).toHaveBeenCalledWith(
+        UserRole.STAFF,
+        'staff-1',
+        'new-hash',
+      );
+    });
+
+    it('rejects the invite of a deactivated account', async () => {
+      oneTimeTokens.consume.mockResolvedValue({
+        userId: 'staff-1',
+        userRole: UserRole.STAFF,
+      });
+      accounts.findById.mockResolvedValue(null);
+
+      await expect(
+        service.acceptInvite(UserRole.STAFF, {
+          token: 'invite-token',
+          password: 'new-password',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(accounts.updatePassword).not.toHaveBeenCalled();
     });
   });
 

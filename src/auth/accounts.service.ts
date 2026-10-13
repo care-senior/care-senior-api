@@ -36,7 +36,7 @@ export class AccountsService {
   ): Promise<AccountWithPassword | null> {
     const entity = await this.accountQuery(role)
       .addSelect('account.password')
-      .where('LOWER(account.email) = LOWER(:email)', { email })
+      .andWhere('LOWER(account.email) = LOWER(:email)', { email })
       .getOne();
     if (!entity) return null;
     return {
@@ -47,7 +47,7 @@ export class AccountsService {
 
   async findById(role: UserRole, id: string): Promise<Account | null> {
     const entity = await this.accountQuery(role)
-      .where('account.id = :id', { id })
+      .andWhere('account.id = :id', { id })
       .getOne();
     return entity ? this.toAccount(role, entity) : null;
   }
@@ -57,13 +57,23 @@ export class AccountsService {
   }
 
   private accountQuery(role: UserRole): SelectQueryBuilder<AccountEntity> {
-    const columns =
-      role === UserRole.STAFF
-        ? ['id', 'name', 'email', 'photoPath', 'staffRole', 'clinicId']
-        : ['id', 'name', 'email', 'photoPath'];
-    return (this.repositoryFor(role) as Repository<AccountEntity>)
+    if (role === UserRole.STAFF) {
+      return (this.staffMembers as Repository<AccountEntity>)
+        .createQueryBuilder('account')
+        .select(
+          ['id', 'name', 'email', 'photoPath', 'staffRole', 'clinicId'].map(
+            (column) => `account.${column}`,
+          ),
+        )
+        .where('account.deactivatedAt IS NULL');
+    }
+    return (this.guardians as Repository<AccountEntity>)
       .createQueryBuilder('account')
-      .select(columns.map((column) => `account.${column}`));
+      .select(
+        ['id', 'name', 'email', 'photoPath'].map(
+          (column) => `account.${column}`,
+        ),
+      );
   }
 
   private repositoryFor(role: UserRole) {
