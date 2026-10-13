@@ -1,6 +1,13 @@
-import { Column, Entity, JoinTable, ManyToMany, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  Entity,
+  JoinTable,
+  ManyToMany,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
 import type { Relation } from 'typeorm';
 import { Resident } from '../../residents/entities/resident.entity.js';
+import { encryptedColumn } from '../../common/crypto/field-encryption.js';
 
 @Entity('guardians')
 export class Guardian {
@@ -16,10 +23,18 @@ export class Guardian {
   @Column({ name: 'photo_path', nullable: true })
   photoPath?: string;
 
-  @Column()
+  @Column({ type: 'varchar', transformer: encryptedColumn })
   cpf!: string;
 
-  @Column({ name: 'contacted_clinic_ids', type: 'text', array: true, default: '{}' })
+  @Column({ type: 'varchar', nullable: true, select: false })
+  password?: string | null;
+
+  @Column({
+    name: 'contacted_clinic_ids',
+    type: 'text',
+    array: true,
+    default: '{}',
+  })
   contactedClinicIds!: string[];
 
   @ManyToMany(() => Resident, (resident) => resident.guardians)

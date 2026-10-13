@@ -1,7 +1,14 @@
-import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
 import type { Relation } from 'typeorm';
 import { Clinic } from '../../clinics/entities/clinic.entity.js';
 import { StaffRole } from '../../common/enums/index.js';
+import { encryptedColumn } from '../../common/crypto/field-encryption.js';
 
 @Entity('staff_members')
 export class StaffMember {
@@ -14,7 +21,7 @@ export class StaffMember {
   @Column({ unique: true })
   email!: string;
 
-  @Column({ type: 'enum', enum: StaffRole })
+  @Column({ type: 'enum', enum: StaffRole, enumName: 'staff_role' })
   role!: StaffRole;
 
   @Column({ name: 'clinic_id' })
@@ -29,6 +36,9 @@ export class StaffMember {
   @Column({ name: 'photo_path', nullable: true })
   photoPath?: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true, transformer: encryptedColumn })
   cpf?: string;
+
+  @Column({ type: 'varchar', nullable: true, select: false })
+  password?: string | null;
 }

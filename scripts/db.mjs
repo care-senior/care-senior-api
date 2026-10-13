@@ -51,7 +51,15 @@ async function migrate(client) {
   if (pending.length === 0) console.log('database is up to date');
 }
 
-const commands = { migrate };
+async function seed(client) {
+  for (const file of await listFiles('seeds', '.mjs')) {
+    const { default: run } = await import(join(DB_DIR, 'seeds', file));
+    await run(client);
+    console.log(`seeded ${file}`);
+  }
+}
+
+const commands = { migrate, seed };
 const command = commands[process.argv[2]];
 
 if (!command) {

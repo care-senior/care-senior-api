@@ -3,6 +3,10 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
+import { AuthModule } from './auth/auth.module.js';
+import { AuthSession } from './auth/entities/auth-session.entity.js';
+import { AuthToken } from './auth/entities/auth-token.entity.js';
+import { validateEnvironment, type Environment } from './config/environment.js';
 import { Clinic } from './clinics/entities/clinic.entity.js';
 import { Room } from './rooms/entities/room.entity.js';
 import { StaffMember } from './staff/entities/staff-member.entity.js';
@@ -35,25 +39,28 @@ const ENTITIES = [
   UserFeedback,
   AppNotification,
   NotificationRecipient,
+  AuthSession,
+  AuthToken,
 ];
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({ isGlobal: true, validate: validateEnvironment }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
+      useFactory: (config: ConfigService<Environment, true>) => ({
         type: 'postgres',
-        host: config.getOrThrow<string>('DB_HOST'),
-        port: config.get<number>('DB_PORT', 5432),
-        username: config.getOrThrow<string>('DB_USERNAME'),
-        password: config.getOrThrow<string>('DB_PASSWORD'),
-        database: config.getOrThrow<string>('DB_NAME'),
+        host: config.get('DB_HOST', { infer: true }),
+        port: config.get('DB_PORT', { infer: true }),
+        username: config.get('DB_USERNAME', { infer: true }),
+        password: config.get('DB_PASSWORD', { infer: true }),
+        database: config.get('DB_NAME', { infer: true }),
         entities: ENTITIES,
         synchronize: false,
       }),
     }),
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],
