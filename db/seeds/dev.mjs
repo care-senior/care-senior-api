@@ -27,6 +27,8 @@ const FAMILY_MESSAGE_NOTIFICATION_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a1002';
 const CLINIC_MESSAGE_NOTIFICATION_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a1003';
 const FAMILY_FEEDBACK_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a1101';
 const STAFF_FEEDBACK_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a1102';
+const BLOOD_PRESSURE_ROUTINE_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a1201';
+const MUSIC_ROUTINE_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a1202';
 
 const STAFF = [
   [
@@ -289,5 +291,22 @@ export default async function seed(client) {
       inDaysAt(-2, '20:15'),
       inDaysAt(-1, '14:40'),
     ],
+  );
+
+  // Their activities appear on the next hourly run of the routine job.
+  await client.query(
+    `INSERT INTO routines (id, clinic_id, title, activity_type, time, weekdays,
+       scope, instructions) VALUES
+       ($1, $3, 'Aferição de pressão', 'vitalSigns', '07:00',
+        '{mon,tue,wed,thu,fri,sat,sun}', 'allResidents', 'Anotar no prontuário'),
+       ($2, $3, 'Roda de música', 'socialGathering', '15:00',
+        '{mon,wed,fri}', 'specificRoom', NULL)
+     ON CONFLICT (id) DO NOTHING`,
+    [BLOOD_PRESSURE_ROUTINE_ID, MUSIC_ROUTINE_ID, CLINIC_ID],
+  );
+  await client.query(
+    `INSERT INTO routine_rooms (routine_id, room_id) VALUES ($1, $2)
+     ON CONFLICT DO NOTHING`,
+    [MUSIC_ROUTINE_ID, ROOM_12B_ID],
   );
 }
