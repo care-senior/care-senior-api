@@ -429,5 +429,39 @@ describe('Residents (e2e)', () => {
         .send({ ...body, email: uniqueEmail('family') })
         .expect(403);
     });
+
+    it('removes a guardian from the resident, but never the last one', async () => {
+      const { body: secondGuardian } = await http()
+        .post(`${RESIDENTS}/${linkedResidentId}/guardians`)
+        .set('Authorization', asCaregiver())
+        .send({
+          name: 'Paulo Souza',
+          email: uniqueEmail('second-guardian'),
+          cpf: '529.982.247-25',
+        })
+        .expect(201);
+      const removeSecondGuardian = () =>
+        http().delete(
+          `${RESIDENTS}/${linkedResidentId}/guardians/${secondGuardian.id}`,
+        );
+
+      await removeSecondGuardian()
+        .set('Authorization', asCaregiver())
+        .expect(403);
+      await removeSecondGuardian()
+        .set('Authorization', asOtherClinicNurse())
+        .expect(403);
+      await removeSecondGuardian().set('Authorization', asNurse()).expect(204);
+
+      await http()
+        .get(`${RESIDENTS}/${linkedResidentId}`)
+        .set('Authorization', asGuardian(secondGuardian))
+        .expect(403);
+      await http()
+        .delete(`${RESIDENTS}/${linkedResidentId}/guardians/${guardian.id}`)
+        .set('Authorization', asNurse())
+        .expect(409);
+      await removeSecondGuardian().set('Authorization', asNurse()).expect(404);
+    });
   });
 });

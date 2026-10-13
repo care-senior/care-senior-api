@@ -1,4 +1,8 @@
-import { ConflictException, ForbiddenException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { DataSource, QueryFailedError } from 'typeorm';
@@ -13,6 +17,7 @@ import { ResidentsService } from './residents.service.js';
 function chainableQuery(result: Record<string, unknown> = {}) {
   const query: Record<string, unknown> = {};
   for (const method of [
+    'select',
     'setLock',
     'where',
     'andWhere',
@@ -37,11 +42,14 @@ describe('ResidentsService', () => {
     save: vi.fn((entity: Resident) => Promise.resolve(entity)),
     update: vi.fn(),
   };
-  const guardianQuery = { exists: false };
+  const guardianQuery = { exists: false, guardianIds: [] as string[] };
   const guardianRepository = {
     createQueryBuilder: vi.fn(() =>
       chainableQuery({
         getExists: vi.fn(() => Promise.resolve(guardianQuery.exists)),
+        getMany: vi.fn(() =>
+          Promise.resolve(guardianQuery.guardianIds.map((id) => ({ id }))),
+        ),
       }),
     ),
     create: vi.fn((data: object) => ({ ...data })),
@@ -63,7 +71,9 @@ describe('ResidentsService', () => {
     ),
     count: vi.fn().mockResolvedValue(0),
     update: vi.fn(),
+    createQueryBuilder: vi.fn(),
   };
+  const removeLink = vi.fn();
   const dataSource = {
     transaction: vi.fn((work: (m: typeof manager) => Promise<unknown>) =>
       work(manager),
@@ -93,6 +103,10 @@ describe('ResidentsService', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     guardianQuery.exists = false;
+    guardianQuery.guardianIds = [];
+    manager.createQueryBuilder.mockReturnValue({
+      relation: () => ({ of: () => ({ remove: removeLink }) }),
+    });
     lockedRows.clear();
     lockedRows.set(Room, { id: 'room-2', clinicId: 'clinic-1', capacity: 2 });
     const module = await Test.createTestingModule({
@@ -263,6 +277,34 @@ describe('ResidentsService', () => {
         service.addGuardian('resident-1', newGuardian, nurse),
       ).rejects.toBeInstanceOf(ConflictException);
       expect(invitations.inviteGuardian).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('removeGuardian', () => {
+    it('unlinks one of the guardians of a resident of the clinic', async () => {
+      lockedRows.set(Resident, resident());
+      guardianQuery.guardianIds = ['guardian-1', 'guardian-2'];
+
+      await service.removeGuardian('resident-1', 'guardian-2', nurse);
+
+      expect(removeLink).toHaveBeenCalledWith('resident-1');
+    });
+
+    it('refuses the last guardian, strangers and residents of other clinics', async () => {
+      lockedRows.set(Resident, resident());
+      guardianQuery.guardianIds = ['guardian-1'];
+      await expect(
+        service.removeGuardian('resident-1', 'guardian-1', nurse),
+      ).rejects.toBeInstanceOf(ConflictException);
+      await expect(
+        service.removeGuardian('resident-1', 'guardian-9', nurse),
+      ).rejects.toBeInstanceOf(NotFoundException);
+
+      lockedRows.set(Resident, resident({ clinicId: 'clinic-2' }));
+      await expect(
+        service.removeGuardian('resident-1', 'guardian-1', nurse),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(removeLink).not.toHaveBeenCalled();
     });
   });
 });
