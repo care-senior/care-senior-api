@@ -121,7 +121,7 @@ docker compose run --rm api-dev npm run db:migrate
 docker compose run --rm api-dev npm run db:seed
 ```
 
-O seed cria a clínica "Residencial Vida Plena" com uma coordenadora (`coordenadora@caresenior.dev`), uma enfermeira (`enfermeira@caresenior.dev`), um cuidador (`cuidador@caresenior.dev`) e uma responsável (`responsavel@caresenior.dev`), todos com a senha `careSenior123`, além de um medicamento da idosa Maria (Losartana) e três atividades de hoje dela (a dose da Losartana e o café concluídos, a fisioterapia pendente) e de uma solicitação de vínculo pendente (`vinculo-pendente@caresenior.dev`). Os e-mails enviados pela API (recuperação de senha) aparecem no Mailpit em `http://localhost:8025` — use `SMTP_HOST=mailpit` e `SMTP_PORT=1025` no `.env`.
+O seed cria a clínica "Residencial Vida Plena" com uma coordenadora (`coordenadora@caresenior.dev`), uma enfermeira (`enfermeira@caresenior.dev`), um cuidador (`cuidador@caresenior.dev`) e uma responsável (`responsavel@caresenior.dev`), todos com a senha `careSenior123`, além de um medicamento da idosa Maria (Losartana) e três atividades de hoje dela (a dose da Losartana e o café concluídos, a fisioterapia pendente) de uma solicitação de saída pendente dela e de uma solicitação de vínculo pendente (`vinculo-pendente@caresenior.dev`). Os e-mails enviados pela API (recuperação de senha) aparecem no Mailpit em `http://localhost:8025` — use `SMTP_HOST=mailpit` e `SMTP_PORT=1025` no `.env`.
 
 `DB_HOST` no `.env` aponta pro nome do serviço (`db`), não `localhost` — de dentro do container da API, `localhost` seria o próprio container.
 
@@ -137,7 +137,7 @@ docker compose run --rm api-dev npm run test:e2e
 
 ## O que falta implementar
 
-Hoje existem as entidades TypeORM, o schema SQL, a autenticação (`/auth`) e os módulos de clinics, staff, guardians, residents, rooms, activities e medications — as rotas prontas estão marcadas com ✅ nas tabelas abaixo; os demais domínios ainda não têm service, controller ou endpoint. O contrato de API abaixo é o mapeamento pra atender os dois clientes (mobile + web) sobre a mesma base de dados; "Cliente" na última coluna indica quem consome cada rota hoje, só pra saber o que quebra se o contrato mudar.
+Hoje existem as entidades TypeORM, o schema SQL, a autenticação (`/auth`) e os módulos de clinics, staff, guardians, residents, rooms, activities, medications e outing-requests — as rotas prontas estão marcadas com ✅ nas tabelas abaixo; os demais domínios ainda não têm service, controller ou endpoint. O contrato de API abaixo é o mapeamento pra atender os dois clientes (mobile + web) sobre a mesma base de dados; "Cliente" na última coluna indica quem consome cada rota hoje, só pra saber o que quebra se o contrato mudar.
 
 Além dos endpoints, falta o upload de fotos (`photoPath`). Os medicamentos informados no autocadastro e no cadastro walk-in não têm rota própria: o app chama `POST /medications` uma vez por medicamento logo depois de criar o idoso.
 
@@ -291,14 +291,16 @@ Uma prescrição é de um idoso. A permissão é a mesma do perfil do idoso: enq
 
 ### Outing requests
 
-| Método | Endpoint                       | Descrição                                        | Cliente | Observação                     |
-| ------ | -------------------------------- | ------------------------------------------------------ | ------- | ---------------------------------- |
-| GET    | `/outing-requests`             | Lista (`?residentId=`, `?clinicId=`, `?status=`) | Ambos   |                                 |
-| POST   | `/outing-requests`             | Criar solicitação                                | Mobile  |                                 |
-| GET    | `/outing-requests/:id`         | Detalhe                                          | Ambos   |                                 |
-| POST   | `/outing-requests/:id/approve` | Aprovar                                          | Ambos   | `@Roles(COORDINATOR, NURSE)`   |
-| POST   | `/outing-requests/:id/reject`  | Recusar (body: `reason`)                         | Ambos   | `@Roles(COORDINATOR, NURSE)`   |
-| DELETE | `/outing-requests/:id`         | Cancelar solicitação ainda pendente              | —       | **planejado** — item em aberto |
+O responsável pede a saída de um idoso **vinculado** (é a clínica dele que aprova) e acompanha todas as solicitações dos próprios idosos, inclusive as feitas por outro responsável do mesmo idoso. A equipe vê as solicitações dos idosos da própria clínica; só coordenadora e enfermeira dessa clínica respondem, uma vez só — a resposta é um `UPDATE` condicionado a `pending`, então duas respostas simultâneas não se sobrescrevem (`409` pra segunda). A saída precisa começar no futuro e a volta ser depois da saída (`400`).
+
+| Método | Endpoint                       | Descrição                                                          | Cliente | Observação                     |
+| ------ | ------------------------------ | ------------------------------------------------------------------ | ------- | ------------------------------ |
+| GET    | `/outing-requests`             | Lista (`?residentId=`, `?clinicId=`, `?status=`, `?search=` por idoso ou responsável) | Ambos   | ✅ implementado — mais recentes primeiro |
+| POST   | `/outing-requests`             | Criar solicitação                                                  | Mobile  | ✅ implementado — só responsável do idoso; idoso sem clínica é `409` |
+| GET    | `/outing-requests/:id`         | Detalhe                                                            | Ambos   | ✅ implementado                |
+| POST   | `/outing-requests/:id/approve` | Aprovar                                                            | Ambos   | ✅ implementado — `@Roles(COORDINATOR, NURSE)`, só a própria clínica |
+| POST   | `/outing-requests/:id/reject`  | Recusar (body: `reason`)                                           | Ambos   | ✅ implementado — `@Roles(COORDINATOR, NURSE)`; o motivo é visível ao responsável |
+| DELETE | `/outing-requests/:id`         | Cancelar solicitação ainda pendente                                | Mobile  | ✅ implementado — só quem pediu; `409` se já respondida; `204`. Sem tela ainda |
 
 ### Messages
 
