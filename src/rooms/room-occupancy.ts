@@ -7,9 +7,9 @@ import type { EntityManager } from 'typeorm';
 import { Resident } from '../residents/entities/resident.entity.js';
 import { Room } from './entities/room.entity.js';
 
-// The room row stays locked until the transaction ends, so two concurrent
-// placements can't both take the last free bed.
-export async function lockRoomWithFreeBed(
+// The room row stays locked until the transaction ends, so placing a
+// resident, changing the capacity and deleting the room never interleave.
+export async function lockRoom(
   manager: EntityManager,
   roomId: string,
   clinicId: string,
@@ -26,9 +26,25 @@ export async function lockRoomWithFreeBed(
   if (room.clinicId !== clinicId) {
     throw new ForbiddenException('Room belongs to another clinic');
   }
-  const occupants = await manager.count(Resident, { where: { roomId } });
+  return room;
+}
+
+export async function lockRoomWithFreeBed(
+  manager: EntityManager,
+  roomId: string,
+  clinicId: string,
+): Promise<Room> {
+  const room = await lockRoom(manager, roomId, clinicId);
+  const occupants = await countOccupants(manager, roomId);
   if (occupants >= room.capacity) {
     throw new ConflictException(`Room ${room.number} is full`);
   }
   return room;
+}
+
+export function countOccupants(
+  manager: EntityManager,
+  roomId: string,
+): Promise<number> {
+  return manager.count(Resident, { where: { roomId } });
 }
