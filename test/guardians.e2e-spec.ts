@@ -238,6 +238,11 @@ describe('Guardians (e2e)', () => {
         .set('Authorization', asGuardian(guardian))
         .send({ email: uniqueEmail('x') })
         .expect(400);
+      await http()
+        .patch(`${GUARDIANS}/me`)
+        .set('Authorization', asGuardian(guardian))
+        .send({ cpf: null })
+        .expect(400);
     });
   });
 
