@@ -20,6 +20,7 @@ import {
 } from '../dto/activity-response.dto.js';
 import { CreateActivityDto } from '../dto/create-activity.dto.js';
 import {
+  CancelActivityDto,
   CompleteParticipantDto,
   CompleteParticipantsDto,
   SkipParticipantDto,
@@ -120,5 +121,19 @@ export class ActivitiesController {
     @CurrentUser() currentUser: AuthenticatedUser,
   ): Promise<ActivityResponseDto> {
     return this.activitiesService.skipBatch(id, dto, currentUser);
+  }
+
+  /**
+   * Cancels it for every participant still pending or in progress; the ones
+   * already completed or skipped keep their outcome.
+   */
+  @Post(':id/cancel')
+  @HttpCode(HttpStatus.OK)
+  cancel(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CancelActivityDto,
+    @CurrentUser() currentUser: AuthenticatedUser,
+  ): Promise<ActivityResponseDto> {
+    return this.activitiesService.cancel(id, dto, currentUser);
   }
 }

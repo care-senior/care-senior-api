@@ -23,16 +23,22 @@ import {
 } from '../../../common/enums/index.js';
 import type { AuthenticatedUser } from '../../../common/types/authenticated-user.interface.js';
 import { Medication } from '../../medications/entities/medication.entity.js';
-import { NotifierService } from '../../notifications/services/notifier.service.js';
+import {
+  NotifierService,
+  type NotificationContent,
+} from '../../notifications/services/notifier.service.js';
+import { formatDateTime } from '../../notifications/utils/notification-text.js';
 import { Resident } from '../../residents/entities/resident.entity.js';
 import { ResidentAccessService } from '../../residents/services/resident-access.service.js';
 import { RoutineOccurrence } from '../../routines/entities/routine-occurrence.entity.js';
 import {
   ActivityPageDto,
+  ActivityParticipantResponseDto,
   ActivityResponseDto,
 } from '../dto/activity-response.dto.js';
 import type { CreateActivityDto } from '../dto/create-activity.dto.js';
 import type {
+  CancelActivityDto,
   CompleteParticipantDto,
   CompleteParticipantsDto,
   SkipParticipantDto,
@@ -338,6 +344,43 @@ export class ActivitiesService {
     );
   }
 
+  async cancel(
+    id: string,
+    { reason }: CancelActivityDto,
+    currentUser: AuthenticatedUser,
+  ): Promise<ActivityResponseDto> {
+    const clinicId = this.ownClinicId(currentUser);
+    const cancelledIds = await this.dataSource.transaction(async (manager) => {
+      await this.lockActivity(manager, id, clinicId);
+      const open = await manager.findBy(ActivityParticipant, {
+        activityId: id,
+        status: In(OPEN_STATUSES),
+      });
+      if (open.length === 0) {
+        throw new ConflictException(
+          `Activity ${id} has no participant left to cancel`,
+        );
+      }
+      const residentIds = open.map(({ residentId }) => residentId);
+      await manager.update(
+        ActivityParticipant,
+        { activityId: id, residentId: In(residentIds) },
+        {
+          status: ActivityStatus.CANCELLED,
+          rating: null,
+          comment: null,
+          notes: reason,
+          statusChangedAt: new Date(),
+          registeredByStaffId: currentUser.id,
+        },
+      );
+      return residentIds;
+    });
+    const activity = await this.findOne(id, currentUser);
+    await this.notifyOutcomes(activity, cancelledIds);
+    return activity;
+  }
+
   // A batch is all or nothing: if one resident can't take the outcome, none
   // of them does, so the client never has to work out a partial result.
   private async registerOutcome(
@@ -396,27 +439,9 @@ export class ActivitiesService {
   ) {
     for (const participant of activity.participants) {
       if (!residentIds.includes(participant.residentId)) continue;
-      const completed = participant.status === ActivityStatus.COMPLETED;
-      const details = completed
-        ? [
-            participant.rating && `nota ${participant.rating}/5`,
-            participant.comment,
-          ]
-            .filter(Boolean)
-            .join(' — ')
-        : participant.notes;
-      await this.notifier.notify(
-        {
-          type: NotificationType.GENERAL,
-          title: completed
-            ? `Atividade concluída: ${activity.title}`
-            : `Atividade não realizada: ${activity.title}`,
-          message: completed
-            ? `${participant.residentName} concluiu ${activity.title}${details ? `: ${details}` : '.'}`
-            : `${participant.residentName} não fez ${activity.title}: ${details}`,
-        },
-        { guardiansOf: participant.residentId },
-      );
+      await this.notifier.notify(outcomeNotification(activity, participant), {
+        guardiansOf: participant.residentId,
+      });
     }
   }
 
@@ -520,6 +545,41 @@ export class ActivitiesService {
       throw new ForbiddenException('Only staff members can do this');
     }
     return currentUser.clinicId;
+  }
+}
+
+function outcomeNotification(
+  activity: ActivityResponseDto,
+  participant: ActivityParticipantResponseDto,
+): NotificationContent {
+  const { title } = activity;
+  const name = participant.residentName;
+  switch (participant.status) {
+    case ActivityStatus.COMPLETED: {
+      const details = [
+        participant.rating && `nota ${participant.rating}/5`,
+        participant.comment,
+      ]
+        .filter(Boolean)
+        .join(' — ');
+      return {
+        type: NotificationType.GENERAL,
+        title: `Atividade concluída: ${title}`,
+        message: `${name} concluiu ${title}${details ? `: ${details}` : '.'}`,
+      };
+    }
+    case ActivityStatus.CANCELLED:
+      return {
+        type: NotificationType.GENERAL,
+        title: `Atividade cancelada: ${title}`,
+        message: `A clínica cancelou ${title} de ${name}, marcada para ${formatDateTime(activity.scheduledTime)}: ${participant.notes}`,
+      };
+    default:
+      return {
+        type: NotificationType.GENERAL,
+        title: `Atividade não realizada: ${title}`,
+        message: `${name} não fez ${title}: ${participant.notes}`,
+      };
   }
 }
 

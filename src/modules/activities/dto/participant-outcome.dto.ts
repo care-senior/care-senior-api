@@ -41,3 +41,11 @@ export class SkipParticipantsDto extends SkipParticipantDto {
   @IsResidentIdList()
   residentIds!: string[];
 }
+
+/** The reason is visible to the guardians. */
+export class CancelActivityDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
+  reason!: string;
+}
