@@ -160,11 +160,11 @@ Além dos endpoints, falta o convite de quem é cadastrado pela equipe (`/auth/*
 
 ### Clinics
 
-| Método | Endpoint       | Descrição                             | Cliente | Observação              |
-| ------ | --------------- | ---------------------------------------- | ------- | -------------------------- |
-| GET    | `/clinics`     | Lista clínicas (busca do responsável) | Mobile  | responsável pré-vínculo |
-| GET    | `/clinics/:id` | Detalhe institucional                 | Ambos   |                         |
-| PATCH  | `/clinics/:id` | Editar dados institucionais           | Web     | tela "Clínica"          |
+| Método | Endpoint       | Descrição                                                    | Cliente | Observação                                                    |
+| ------ | -------------- | ------------------------------------------------------------ | ------- | ------------------------------------------------------------- |
+| GET    | `/clinics`     | Lista clínicas, paginada (`?search=` por nome ou endereço)   | Mobile  | ✅ implementado — responsável pré-vínculo                      |
+| GET    | `/clinics/:id` | Detalhe institucional                                        | Ambos   | ✅ implementado                                                |
+| PATCH  | `/clinics/:id` | Editar dados institucionais (inclui latitude/longitude)      | Web     | ✅ implementado — `@Roles(COORDINATOR, NURSE)`, só a própria clínica; foto ainda não editável (falta definir upload) |
 
 ### Staff
 

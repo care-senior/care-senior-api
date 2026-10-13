@@ -15,7 +15,7 @@ export interface TestApp {
   app: INestApplication;
   dataSource: DataSource;
   mail: { sendPasswordReset: ReturnType<typeof vi.fn> };
-  createClinic(): Promise<string>;
+  createClinic(options?: { name?: string; address?: string }): Promise<string>;
   createStaffMember(options?: {
     clinicId?: string;
     staffRole?: StaffRole;
@@ -50,12 +50,16 @@ export async function createTestApp(): Promise<TestApp> {
     type: argon2.argon2id,
   });
 
-  async function createClinic() {
+  async function createClinic({
+    name = 'E2E Clinic',
+    address = 'Rua Teste, 1',
+  }: { name?: string; address?: string } = {}) {
     const [clinic] = (await dataSource.query(
       `INSERT INTO clinics (name, address, phone, operating_hours, responsible_people,
          whatsapp_phone, latitude, longitude)
-       VALUES ('E2E Clinic', 'Rua Teste, 1', '0000', '24h', 'E2E', '0000', 0, 0)
+       VALUES ($1, $2, '0000', '24h', 'E2E', '0000', 0, 0)
        RETURNING id`,
+      [name, address],
     )) as { id: string }[];
     createdClinicIds.push(clinic!.id);
     return clinic!.id;
