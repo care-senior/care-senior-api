@@ -1,5 +1,12 @@
-import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
 import type { Relation } from 'typeorm';
+import { HealthRecordType } from '../../../common/enums/index.js';
 import { Resident } from '../../residents/entities/resident.entity.js';
 import { StaffMember } from '../../staff/entities/staff-member.entity.js';
 
@@ -17,8 +24,12 @@ export class HealthRecord {
   @JoinColumn({ name: 'resident_id' })
   resident!: Relation<Resident>;
 
-  @Column()
-  type!: string;
+  @Column({
+    type: 'enum',
+    enum: HealthRecordType,
+    enumName: 'health_record_type',
+  })
+  type!: HealthRecordType;
 
   @Column()
   value!: string;
