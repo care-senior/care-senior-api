@@ -428,4 +428,72 @@ describe('Activities (e2e)', () => {
       expect(statusOf(response.body, antoniaId)).toBe('pending');
     });
   });
+
+  describe('POST /activities/:id/cancel', () => {
+    it('cancels what is still open, keeps the outcomes and tells the families', async () => {
+      const activity = await scheduleActivity();
+      await http()
+        .post(`${ACTIVITIES}/${activity.id}/participants/${mariaId}/complete`)
+        .set('Authorization', asCaregiver())
+        .send({ rating: 4 })
+        .expect(200);
+
+      for (const [authorization, body, status] of [
+        [asCaregiver(), { reason: '' }, 400],
+        [asGuardian(joseFamily), { reason: 'Chuva' }, 403],
+        [asOtherClinicNurse(), { reason: 'Chuva' }, 403],
+      ] as const) {
+        await http()
+          .post(`${ACTIVITIES}/${activity.id}/cancel`)
+          .set('Authorization', authorization)
+          .send(body)
+          .expect(status);
+      }
+
+      const response = await http()
+        .post(`${ACTIVITIES}/${activity.id}/cancel`)
+        .set('Authorization', asCaregiver())
+        .send({ reason: 'Chuva forte, roda adiada' })
+        .expect(200);
+      expect(statusOf(response.body, mariaId)).toBe('completed');
+      expect(
+        response.body.participants.find(
+          ({ residentId }: { residentId: string }) => residentId === joseId,
+        ),
+      ).toMatchObject({
+        status: 'cancelled',
+        notes: 'Chuva forte, roda adiada',
+        registeredBy: { id: caregiver.id, name: 'E2E Staff' },
+      });
+
+      const joseInbox = await http()
+        .get('/api/v1/notifications')
+        .set('Authorization', asGuardian(joseFamily))
+        .expect(200);
+      expect(joseInbox.body.data).toEqual([
+        expect.objectContaining({
+          title: 'Atividade cancelada: Roda de música',
+          message: expect.stringContaining('Chuva forte, roda adiada'),
+        }),
+      ]);
+      const mariaInbox = await http()
+        .get('/api/v1/notifications')
+        .set('Authorization', asGuardian(mariaFamily))
+        .expect(200);
+      expect(
+        mariaInbox.body.data.map(({ title }: { title: string }) => title),
+      ).toEqual(['Atividade concluída: Roda de música']);
+
+      await http()
+        .post(`${ACTIVITIES}/${activity.id}/cancel`)
+        .set('Authorization', asCaregiver())
+        .send({ reason: 'De novo' })
+        .expect(409);
+      await http()
+        .patch(`${ACTIVITIES}/${activity.id}`)
+        .set('Authorization', asCaregiver())
+        .send({ title: 'Outra' })
+        .expect(409);
+    });
+  });
 });

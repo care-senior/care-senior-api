@@ -145,7 +145,7 @@ docker compose run --rm api-dev npm run test:e2e
 
 Hoje existem as entidades TypeORM, o schema SQL, a autenticação (`/auth`) e os módulos de clinics, staff, guardians, residents, rooms, activities, medications, outing-requests, health-records, messages, notifications, feedback, routines e reports — todas as rotas das tabelas abaixo estão implementadas (✅). O que ainda falta fora delas está logo abaixo. O contrato de API abaixo é o mapeamento pra atender os dois clientes (mobile + web) sobre a mesma base de dados; "Cliente" na última coluna indica quem consome cada rota hoje, só pra saber o que quebra se o contrato mudar.
 
-Além dos endpoints, falta o upload de fotos (`photoPath`) e uma rota pra cancelar uma atividade (o status `cancelled` existe, mas nada o grava). Os medicamentos informados no autocadastro e no cadastro walk-in não têm rota própria: o app chama `POST /medications` uma vez por medicamento logo depois de criar o idoso.
+Além dos endpoints, falta o upload de fotos (`photoPath`). Os medicamentos informados no autocadastro e no cadastro walk-in não têm rota própria: o app chama `POST /medications` uma vez por medicamento logo depois de criar o idoso.
 
 **Convenções gerais** (padrão NestJS):
 
@@ -251,7 +251,7 @@ Só colaboradores, e só os quartos da própria clínica. Cada quarto vem com os
 
 Uma atividade é da clínica e compartilhada por um ou mais idosos (`participants`), cada um com o próprio status. Qualquer colaborador da clínica agenda, edita e registra o andamento. O responsável vê só as atividades dos próprios idosos e, dentro delas, só os participantes que são idosos dele — nunca a nota, o comentário ou o motivo de pulo do idoso de outra família, nem quem da equipe registrou (`registeredBy`). Toda mudança numa atividade trava a linha dela, então uma edição nunca entra depois de um participante ter começado.
 
-Status de participante: `pending` → `inProgress` (opcional, via `start-all`) → `completed` ou `skipped`, uma vez só (`409` se já tiver desfecho). `late` não é gravado: a resposta mostra `late` pra um participante ainda `pending` cujo horário já passou. `cancelled` ainda não tem rota.
+Status de participante: `pending` → `inProgress` (opcional, via `start-all`) → `completed` ou `skipped`, uma vez só (`409` se já tiver desfecho). `late` não é gravado: a resposta mostra `late` pra um participante ainda `pending` cujo horário já passou. `cancelled` é da atividade inteira: `cancel` encerra todo participante ainda `pending` ou `inProgress`, com o motivo visível ao responsável, e mantém o desfecho de quem já concluiu ou pulou. Uma atividade gerada por rotina que foi cancelada fica como histórico — a rotina não a apaga nem gera o horário de novo.
 
 | Método | Endpoint                                            | Descrição                                                     | Cliente | Observação          |
 | ------ | --------------------------------------------------- | ------------------------------------------------------------- | ------- | ------------------- |
@@ -264,6 +264,7 @@ Status de participante: `pending` → `inProgress` (opcional, via `start-all`) �
 | POST   | `/activities/:id/participants/:residentId/skip`     | Pular participante (body: `reason`)                           | Mobile  | ✅ implementado — `reason` obrigatório, visível ao responsável |
 | POST   | `/activities/:id/complete-batch`                    | Concluir em lote (body: `residentIds[]`, `rating`, `comment`) | Mobile  | ✅ implementado — "Selecionar vários"; tudo ou nada |
 | POST   | `/activities/:id/skip-batch`                        | Pular em lote (body: `residentIds[]`, `reason`)               | Mobile  | ✅ implementado — tudo ou nada |
+| POST   | `/activities/:id/cancel`                            | Cancelar a atividade (body: `reason`)                         | Ambos   | ✅ implementado — `409` se ninguém mais estiver em aberto; avisa as famílias de quem foi cancelado |
 
 ### Routines
 
@@ -344,7 +345,7 @@ Caixa de entrada do usuário logado (staff ou responsável), mais recente primei
 | Saída aprovada/recusada (com o motivo)    | Responsáveis do idoso                                               |
 | Recado novo                               | Responsáveis do idoso e, se veio da família, a equipe da clínica — nunca quem enviou |
 | Vínculo aceito, alta registrada           | Responsáveis do idoso                                               |
-| Participante concluiu/pulou uma atividade | Responsáveis daquele idoso (com nota, comentário ou motivo)         |
+| Participante concluiu/pulou uma atividade, ou a atividade foi cancelada | Responsáveis daquele idoso (com nota, comentário ou motivo)         |
 | Atividade começa em até 30 min (`upcomingEvent`/`medicationUpcoming`) | Equipe ativa da clínica — só se ainda há participante `pending` |
 | Medicação sem registro 30 min depois do horário (`medicationOverdue`) | Equipe ativa da clínica                                |
 

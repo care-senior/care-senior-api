@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
+import { DataSource, In } from 'typeorm';
 import {
   ActivityStatus,
   ActivityType,
@@ -319,6 +319,46 @@ describe('ActivitiesService', () => {
           caregiver,
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
+      expect(manager.update).not.toHaveBeenCalled();
+    });
+
+    it('cancels the open participants and tells only their families', async () => {
+      manager.findBy.mockResolvedValue([
+        participant('resident-1', ActivityStatus.PENDING),
+      ]);
+      visible.activity = activity({
+        participants: [
+          Object.assign(participant('resident-1', ActivityStatus.CANCELLED), {
+            notes: 'Chuva',
+          }),
+          participant('resident-2', ActivityStatus.COMPLETED),
+        ],
+      });
+
+      await service.cancel('activity-1', { reason: 'Chuva' }, caregiver);
+
+      expect(manager.update).toHaveBeenCalledWith(
+        ActivityParticipant,
+        { activityId: 'activity-1', residentId: In(['resident-1']) },
+        expect.objectContaining({
+          status: ActivityStatus.CANCELLED,
+          notes: 'Chuva',
+          registeredByStaffId: 'staff-1',
+        }),
+      );
+      expect(notifier.notify).toHaveBeenCalledTimes(1);
+      expect(notifier.notify).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Atividade cancelada: Café' }),
+        { guardiansOf: 'resident-1' },
+      );
+    });
+
+    it('refuses to cancel an activity with every outcome registered', async () => {
+      manager.findBy.mockResolvedValue([]);
+
+      await expect(
+        service.cancel('activity-1', { reason: 'Chuva' }, caregiver),
+      ).rejects.toBeInstanceOf(ConflictException);
       expect(manager.update).not.toHaveBeenCalled();
     });
 

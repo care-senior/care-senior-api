@@ -235,7 +235,7 @@ describe('Routines (e2e)', () => {
   describe('changing a routine', () => {
     it('rebuilds the upcoming activities, keeping the started and the hand-edited ones', async () => {
       const routine = await createRoutine();
-      const [started, edited] = await activitiesOf(routine.id);
+      const [started, edited, cancelled] = await activitiesOf(routine.id);
       await http()
         .post(`${API}/activities/${started!.id}/start-all`)
         .set('Authorization', asCaregiver())
@@ -244,6 +244,12 @@ describe('Routines (e2e)', () => {
         .patch(`${API}/activities/${edited!.id}`)
         .set('Authorization', asCaregiver())
         .send({ title: 'Aferição com o médico' })
+        .expect(200);
+
+      await http()
+        .post(`${API}/activities/${cancelled!.id}/cancel`)
+        .set('Authorization', asCaregiver())
+        .send({ reason: 'Médico remarcou' })
         .expect(200);
 
       const updated = await http()
@@ -255,10 +261,11 @@ describe('Routines (e2e)', () => {
 
       const activities = await activitiesOf(routine.id);
       const kept = activities.filter(({ id }) =>
-        [started!.id, edited!.id].includes(id),
+        [started!.id, edited!.id, cancelled!.id].includes(id),
       );
       expect(kept.map(({ title }) => title).sort()).toEqual([
         'Aferição com o médico',
+        'Aferição de pressão',
         'Aferição de pressão',
       ]);
       const rebuilt = activities.filter((activity) => !kept.includes(activity));
