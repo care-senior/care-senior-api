@@ -25,6 +25,7 @@ import { AuthUserDto } from './dto/auth-user.dto.js';
 import { ForgotPasswordDto } from './dto/forgot-password.dto.js';
 import { LoginDto } from './dto/login.dto.js';
 import { RefreshTokenDto } from './dto/refresh-token.dto.js';
+import { RegisterGuardianDto } from './dto/register-guardian.dto.js';
 import { ResetPasswordDto } from './dto/reset-password.dto.js';
 import { AuthThrottlerGuard } from './guards/auth-throttler.guard.js';
 import { JwtTokensService } from './jwt-tokens.service.js';
@@ -77,6 +78,19 @@ export class AuthController {
     @Res({ passthrough: true }) response: Response,
   ): Promise<AuthResponseDto> {
     const result = await this.auth.login(UserRole.GUARDIAN, dto);
+    return this.deliverSession(request, response, result);
+  }
+
+  /** Guardian self-signup with the resident they look after; starts a session right away. */
+  @Public()
+  @UseGuards(AuthThrottlerGuard)
+  @Post('guardian/register')
+  async registerGuardian(
+    @Body() dto: RegisterGuardianDto,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<AuthResponseDto> {
+    const result = await this.auth.registerGuardian(dto);
     return this.deliverSession(request, response, result);
   }
 

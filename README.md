@@ -122,7 +122,7 @@ docker compose run --rm api-dev npm run test:e2e
 
 Hoje existem as entidades TypeORM, o schema SQL, a autenticação (`/auth`) e os módulos de clinics, staff, guardians e residents — as rotas prontas estão marcadas com ✅ nas tabelas abaixo; os demais domínios ainda não têm service, controller ou endpoint. O contrato de API abaixo é o mapeamento pra atender os dois clientes (mobile + web) sobre a mesma base de dados; "Cliente" na última coluna indica quem consome cada rota hoje, só pra saber o que quebra se o contrato mudar.
 
-Além dos endpoints, falta o autocadastro do responsável (`/auth/guardian/register`), que entra junto com o módulo de residents, e os medicamentos informados no cadastro walk-in, que entram com o módulo de medications.
+Além dos endpoints, faltam os medicamentos informados no autocadastro e no cadastro walk-in, que entram com o módulo de medications, e o upload de fotos (`photoPath`).
 
 **Convenções gerais** (padrão NestJS):
 
@@ -148,7 +148,7 @@ Além dos endpoints, falta o autocadastro do responsável (`/auth/guardian/regis
 | POST   | `/auth/staff/forgot-password`    | Envia por e-mail o link de redefinição de senha                                  | Ambos   | ✅ implementado — sempre `204`                   |
 | POST   | `/auth/guardian/forgot-password` | Idem, para responsável                                                           | Mobile  | ✅ implementado — sempre `204`                   |
 | POST   | `/auth/reset-password`           | Define a nova senha a partir do token do e-mail (body: `token`, `password`)      | Ambos   | ✅ implementado                                  |
-| POST   | `/auth/guardian/register`        | Autocadastro do responsável + idoso (2 passos consolidados)                      | Mobile  |                                                 |
+| POST   | `/auth/guardian/register`        | Autocadastro do responsável + idoso (2 passos consolidados)                      | Mobile  | ✅ implementado — idoso fica sem clínica; já devolve a sessão, como o login; `409` se o e-mail existir |
 | POST   | `/auth/staff/accept-invite`      | Define a senha do colaborador recém-cadastrado (body: `token`, `password`)       | Web     | ✅ implementado — completa o `POST /staff`; `204`, sem login automático |
 | POST   | `/auth/guardian/accept-invite`   | Define a senha do responsável cadastrado via walk-in (body: `token`, `password`) | Ambos   | ✅ implementado — completa o `POST /guardians`; `204` |
 

@@ -1,8 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import type { Repository, SelectQueryBuilder } from 'typeorm';
 import { StaffRole, UserRole } from '../common/enums/index.js';
+import { isUniqueViolation } from '../common/utils/database-errors.js';
 import { Guardian } from '../guardians/entities/guardian.entity.js';
+import type { CreateResidentDto } from '../residents/dto/create-resident.dto.js';
+import { Resident } from '../residents/entities/resident.entity.js';
 import { StaffMember } from '../staff/entities/staff-member.entity.js';
 
 export interface Account {
@@ -50,6 +53,34 @@ export class AccountsService {
       .andWhere('account.id = :id', { id })
       .getOne();
     return entity ? this.toAccount(role, entity) : null;
+  }
+
+  async createGuardianWithResident(
+    guardian: Pick<Guardian, 'name' | 'email' | 'cpf' | 'password'>,
+    resident: CreateResidentDto,
+  ): Promise<Account> {
+    try {
+      const saved = await this.guardians.manager.transaction(
+        async (manager) => {
+          const savedResident = await manager.save(
+            manager.create(Resident, resident),
+          );
+          return manager.save(
+            manager.create(Guardian, {
+              ...guardian,
+              contactedClinicIds: [],
+              residents: [savedResident],
+            }),
+          );
+        },
+      );
+      return this.toAccount(UserRole.GUARDIAN, saved);
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        throw new ConflictException('E-mail already registered');
+      }
+      throw error;
+    }
   }
 
   async updatePassword(role: UserRole, id: string, passwordHash: string) {
