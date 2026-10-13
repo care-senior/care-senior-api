@@ -20,6 +20,8 @@ const OUTING_REQUEST_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0701';
 const NURSE_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0202';
 const BLOOD_PRESSURE_RECORD_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0801';
 const GLUCOSE_RECORD_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0802';
+const FAMILY_MESSAGE_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0901';
+const CLINIC_MESSAGE_ID = '0b7c9c6e-1f3a-4c55-9a51-3f0c2d1a0902';
 
 const STAFF = [
   [
@@ -197,6 +199,22 @@ export default async function seed(client) {
       RESIDENT_ID,
       todayAt('07:10'),
       NURSE_ID,
+    ],
+  );
+
+  await client.query(
+    `INSERT INTO messages (id, resident_id, sender_id, sender_role, sender_name, text, sent_at) VALUES
+       ($1, $3, $4, 'guardian', 'Fernanda Costa', 'Vou chegar um pouco atrasada na visita de hoje.', $6),
+       ($2, $3, $5, 'staff', 'Juliana Martins', 'Sem problemas! Ela está no jardim esperando.', $7)
+     ON CONFLICT (id) DO NOTHING`,
+    [
+      FAMILY_MESSAGE_ID,
+      CLINIC_MESSAGE_ID,
+      RESIDENT_ID,
+      GUARDIAN_ID,
+      NURSE_ID,
+      todayAt('09:00'),
+      todayAt('09:05'),
     ],
   );
 }

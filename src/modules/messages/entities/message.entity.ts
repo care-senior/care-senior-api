@@ -32,6 +32,10 @@ export class Message {
   })
   senderRole!: UserRole;
 
+  /** StaffMember or Guardian id, depending on `senderRole`. */
+  @Column({ name: 'sender_id', type: 'uuid' })
+  senderId!: string;
+
   @Column({ name: 'sender_name' })
   senderName!: string;
 
