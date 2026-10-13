@@ -16,6 +16,7 @@ import { ActivityReminder } from './modules/notifications/entities/activity-remi
 import { OutingRequestsModule } from './modules/outing-requests/outing-requests.module.js';
 import { ResidentsModule } from './modules/residents/residents.module.js';
 import { RoomsModule } from './modules/rooms/rooms.module.js';
+import { RoutinesModule } from './modules/routines/routines.module.js';
 import { StaffModule } from './modules/staff/staff.module.js';
 import { AuthSession } from './modules/auth/entities/auth-session.entity.js';
 import { AuthToken } from './modules/auth/entities/auth-token.entity.js';
@@ -29,6 +30,7 @@ import { OutingRequest } from './modules/outing-requests/entities/outing-request
 import { Activity } from './modules/activities/entities/activity.entity.js';
 import { ActivityParticipant } from './modules/activities/entities/activity-participant.entity.js';
 import { Routine } from './modules/routines/entities/routine.entity.js';
+import { RoutineOccurrence } from './modules/routines/entities/routine-occurrence.entity.js';
 import { Medication } from './modules/medications/entities/medication.entity.js';
 import { HealthRecord } from './modules/health-records/entities/health-record.entity.js';
 import { Message } from './modules/messages/entities/message.entity.js';
@@ -46,6 +48,7 @@ const ENTITIES = [
   Activity,
   ActivityParticipant,
   Routine,
+  RoutineOccurrence,
   Medication,
   HealthRecord,
   Message,
@@ -83,6 +86,7 @@ const ENTITIES = [
     MedicationsModule,
     MessagesModule,
     FeedbackModule,
+    RoutinesModule,
     NotificationsModule,
     OutingRequestsModule,
     ResidentsModule,

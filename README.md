@@ -87,6 +87,7 @@ Cada entidade mapeia 1:1 com as tabelas descritas no [README do app mobile](../c
 | `UserFeedback`                              | Feedback enviado por um colaborador ou responsável                         |
 | `AppNotification` / `NotificationRecipient` | Notificação e o controle de leitura por destinatário                       |
 | `ActivityReminder`                          | Lembrete de uma `Activity` já enviado (um por tipo), pra não repetir       |
+| `RoutineOccurrence`                         | Horário que uma `Routine` já gerou, e a atividade que ela ainda gerencia   |
 
 ## Decisões de modelagem
 
@@ -104,7 +105,7 @@ Coisas que não ficam óbvias só olhando os campos:
 | `ActivityParticipant.registeredBy`                      | Auditoria interna (quem da equipe registrou) — nunca deve aparecer num DTO de resposta pra um `guardian`. `rating`/`comment` são visíveis ao responsável, esse campo não. |
 | `HealthRecord.recordedBy`                              | Mesma regra do `registeredBy`: a equipe vê quem registrou a medição, o responsável não. `type` é o enum `health_record_type` (`bloodPressure`, `glucose`, `weight`, `temperature`, `heartRate`, `other`); o valor continua texto com a unidade (`130/85 mmHg`). |
 | `Activity.medicationId` / `routineId`                   | Só preenchidos quando a atividade é uma dose de medicação ou foi gerada por uma `Routine`, respectivamente.                                                               |
-| `Routine.residents` / `rooms`                           | Só preenchidos conforme `Routine.scope`. `active = false` só pausa a geração de novas atividades, não apaga histórico.                                                    |
+| `Routine.residents` / `rooms`                           | Só preenchidos conforme `Routine.scope`. `active = false` pausa a geração e apaga as atividades futuras ainda gerenciadas pela rotina; o histórico fica.                  |
 | `Medication.endDate`                                    | Nulo significa tratamento contínuo, sem previsão de término.                                                                                                              |
 | `UserFeedback.authorId`, `NotificationRecipient.userId` | FKs polimórficas (`StaffMember` ou `Guardian`, conforme `authorRole`/`userRole`) — sem relação direta possível no TypeORM, resolvidas na camada de aplicação.             |
 | `UserFeedback.clinicIds`                                | Fotografia das clínicas do autor no envio (`uuid[]`, sem FK): o feedback é sobre o app, mas cada clínica vê o de quem é dela. Um idoso que muda de clínica depois não leva o feedback antigo junto. |
@@ -125,7 +126,7 @@ docker compose run --rm api-dev npm run db:migrate
 docker compose run --rm api-dev npm run db:seed
 ```
 
-O seed cria a clínica "Residencial Vida Plena" com uma coordenadora (`coordenadora@caresenior.dev`), uma enfermeira (`enfermeira@caresenior.dev`), um cuidador (`cuidador@caresenior.dev`) e uma responsável (`responsavel@caresenior.dev`), todos com a senha `careSenior123`, além de um medicamento da idosa Maria (Losartana) e três atividades de hoje dela (a dose da Losartana e o café concluídos, a fisioterapia pendente) de duas medições de hoje (pressão e glicose), de uma troca de recados com a família, de uma solicitação de saída pendente dela, de dois feedbacks do app e de uma solicitação de vínculo pendente (`vinculo-pendente@caresenior.dev`). Os e-mails enviados pela API (recuperação de senha) aparecem no Mailpit em `http://localhost:8025` — use `SMTP_HOST=mailpit` e `SMTP_PORT=1025` no `.env`.
+O seed cria a clínica "Residencial Vida Plena" com uma coordenadora (`coordenadora@caresenior.dev`), uma enfermeira (`enfermeira@caresenior.dev`), um cuidador (`cuidador@caresenior.dev`) e uma responsável (`responsavel@caresenior.dev`), todos com a senha `careSenior123`, além de um medicamento da idosa Maria (Losartana) e três atividades de hoje dela (a dose da Losartana e o café concluídos, a fisioterapia pendente) de duas medições de hoje (pressão e glicose), de uma troca de recados com a família, de uma solicitação de saída pendente dela, de dois feedbacks do app, de duas rotinas (aferição de pressão diária e roda de música no quarto 12B — as atividades delas aparecem na próxima execução do job, de hora em hora) e de uma solicitação de vínculo pendente (`vinculo-pendente@caresenior.dev`). Os e-mails enviados pela API (recuperação de senha) aparecem no Mailpit em `http://localhost:8025` — use `SMTP_HOST=mailpit` e `SMTP_PORT=1025` no `.env`.
 
 `DB_HOST` no `.env` aponta pro nome do serviço (`db`), não `localhost` — de dentro do container da API, `localhost` seria o próprio container.
 
@@ -141,7 +142,7 @@ docker compose run --rm api-dev npm run test:e2e
 
 ## O que falta implementar
 
-Hoje existem as entidades TypeORM, o schema SQL, a autenticação (`/auth`) e os módulos de clinics, staff, guardians, residents, rooms, activities, medications, outing-requests, health-records, messages, notifications e feedback — as rotas prontas estão marcadas com ✅ nas tabelas abaixo; os demais domínios ainda não têm service, controller ou endpoint. O contrato de API abaixo é o mapeamento pra atender os dois clientes (mobile + web) sobre a mesma base de dados; "Cliente" na última coluna indica quem consome cada rota hoje, só pra saber o que quebra se o contrato mudar.
+Hoje existem as entidades TypeORM, o schema SQL, a autenticação (`/auth`) e os módulos de clinics, staff, guardians, residents, rooms, activities, medications, outing-requests, health-records, messages, notifications, feedback e routines — as rotas prontas estão marcadas com ✅ nas tabelas abaixo; os demais domínios ainda não têm service, controller ou endpoint. O contrato de API abaixo é o mapeamento pra atender os dois clientes (mobile + web) sobre a mesma base de dados; "Cliente" na última coluna indica quem consome cada rota hoje, só pra saber o que quebra se o contrato mudar.
 
 Além dos endpoints, falta o upload de fotos (`photoPath`). Os medicamentos informados no autocadastro e no cadastro walk-in não têm rota própria: o app chama `POST /medications` uma vez por medicamento logo depois de criar o idoso.
 
@@ -265,14 +266,20 @@ Status de participante: `pending` → `inProgress` (opcional, via `start-all`) �
 
 ### Routines
 
+Regra recorrente da clínica (título, tipo, horário `HH:mm` de Brasília, dias da semana, instruções) que gera as `Activity` da agenda. Qualquer colaborador da clínica cria, edita, pausa e remove; o responsável nunca enxerga uma rotina. O escopo diz quem participa: `allResidents` (os idosos da clínica), `specificResidents` (`residentIds`) ou `specificRoom` (`roomIds`, um ou mais quartos — quem mora neles). As instruções viram o `detail` de cada atividade gerada.
+
+- **Geração:** a rotina mantém a agenda preenchida pelos próximos 7 dias — na criação e num job de hora em hora (`@nestjs/schedule`). Cada horário é gerado uma vez só (`routine_occurrences`), mesmo com mais de uma instância da API.
+- **Atividade gerenciada pela rotina:** futura, sem ninguém iniciado e não editada à mão. Só essas mudam sozinhas: o job ajusta os participantes a quem a rotina cobre agora (quem entrou na clínica ou no quarto entra, quem saiu sai), e editar, pausar ou remover a rotina as apaga e (se ela segue ativa) gera de novo.
+- **Histórico:** atividade passada, iniciada ou editada à mão (`PATCH /activities/:id`, que a desvincula da geração) nunca é apagada pela rotina. Ao remover a rotina, essas ficam com `routineId: null`.
+
 | Método | Endpoint               | Descrição                                        | Cliente | Observação              |
-| ------ | ------------------------ | ----------------------------------------------------- | ------- | -------------------------- |
-| GET    | `/routines`            | Lista (`?clinicId=`)                             | Web     | tela "Agenda & Rotinas" |
-| POST   | `/routines`            | Criar rotina recorrente                          | Web     |                         |
-| GET    | `/routines/:id`        | Detalhe                                          | Web     |                         |
-| PATCH  | `/routines/:id`        | Editar (dias, horário, escopo, instruções)       | Web     |                         |
-| PATCH  | `/routines/:id/toggle` | Ativar/pausar                                    | Web     |                         |
-| DELETE | `/routines/:id`        | Remover rotina (não apaga `Activity` já geradas) | Web     |                         |
+| ------ | ---------------------- | ------------------------------------------------ | ------- | ----------------------- |
+| GET    | `/routines`            | Lista (`?clinicId=`, `?active=`, `?search=` no título), por horário | Web     | ✅ implementado — tela "Agenda & Rotinas" |
+| POST   | `/routines`            | Criar rotina recorrente                          | Web     | ✅ implementado — já gera os próximos 7 dias |
+| GET    | `/routines/:id`        | Detalhe                                          | Web     | ✅ implementado         |
+| PATCH  | `/routines/:id`        | Editar (dias, horário, escopo, instruções)       | Web     | ✅ implementado — refaz as atividades gerenciadas; mudar o escopo pra `specificResidents`/`specificRoom` exige a lista nova |
+| PATCH  | `/routines/:id/toggle` | Ativar/pausar                                    | Web     | ✅ implementado — pausar apaga as atividades gerenciadas; retomar gera de novo |
+| DELETE | `/routines/:id`        | Remover rotina                                   | Web     | ✅ implementado — `204`; o histórico fica |
 
 ### Medications
 

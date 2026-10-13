@@ -68,7 +68,7 @@ export class Routine {
   rooms?: Relation<Room[]>;
 
   @Column({ type: 'text', nullable: true })
-  instructions?: string;
+  instructions?: string | null;
 
   @Column({ default: true })
   active!: boolean;

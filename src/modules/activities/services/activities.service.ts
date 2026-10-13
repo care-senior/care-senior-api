@@ -26,6 +26,7 @@ import { Medication } from '../../medications/entities/medication.entity.js';
 import { NotifierService } from '../../notifications/services/notifier.service.js';
 import { Resident } from '../../residents/entities/resident.entity.js';
 import { ResidentAccessService } from '../../residents/services/resident-access.service.js';
+import { RoutineOccurrence } from '../../routines/entities/routine-occurrence.entity.js';
 import {
   ActivityPageDto,
   ActivityResponseDto,
@@ -232,6 +233,12 @@ export class ActivitiesService {
         );
       }
 
+      // Edited by hand, it stops following its routine.
+      await manager.update(
+        RoutineOccurrence,
+        { activityId: id },
+        { activityId: null },
+      );
       await manager.save(
         manager.merge(Activity, activity, {
           ...fields,
