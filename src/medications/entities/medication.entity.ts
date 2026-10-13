@@ -1,4 +1,10 @@
-import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
 import type { Relation } from 'typeorm';
 import { Resident } from '../../residents/entities/resident.entity.js';
 import { MedicationForm } from '../../common/enums/index.js';
@@ -23,7 +29,7 @@ export class Medication {
   @Column()
   dosage!: string;
 
-  @Column({ type: 'enum', enum: MedicationForm })
+  @Column({ type: 'enum', enum: MedicationForm, enumName: 'medication_form' })
   form!: MedicationForm;
 
   @Column()

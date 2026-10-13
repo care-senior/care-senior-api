@@ -39,6 +39,7 @@ export class ActivityParticipant {
   @Column({
     type: 'enum',
     enum: ActivityStatus,
+    enumName: 'activity_status',
     default: ActivityStatus.PENDING,
   })
   status!: ActivityStatus;

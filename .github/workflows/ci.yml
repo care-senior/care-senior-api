@@ -18,6 +18,15 @@ jobs:
           DB_PASSWORD=care_senior_ci
           DB_NAME=care_senior
           API_PORT=3000
+          JWT_ACCESS_SECRET=ci-access-secret-with-at-least-32-characters
+          JWT_REFRESH_SECRET=ci-refresh-secret-with-at-least-32-characters
+          CORS_ORIGINS=http://localhost:5173
+          COOKIE_SECURE=false
+          SMTP_HOST=mailpit
+          SMTP_PORT=1025
+          SMTP_FROM=Care Senior <ci@caresenior.dev>
+          PASSWORD_RESET_URL=http://localhost:5173/redefinir-senha
+          CPF_ENCRYPTION_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
           EOF
 
       - name: Build images
@@ -28,6 +37,9 @@ jobs:
 
       - name: Unit tests
         run: docker compose run --rm api-dev npm test
+
+      - name: Migrate database
+        run: docker compose run --rm api-dev npm run db:migrate
 
       - name: E2E tests
         run: docker compose run --rm api-dev npm run test:e2e

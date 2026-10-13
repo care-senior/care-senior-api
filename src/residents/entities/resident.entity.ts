@@ -50,7 +50,12 @@ export class Resident {
     return this.room?.number;
   }
 
-  @Column({ type: 'enum', enum: ResidentMood, nullable: true })
+  @Column({
+    type: 'enum',
+    enum: ResidentMood,
+    enumName: 'resident_mood',
+    nullable: true,
+  })
   mood?: ResidentMood;
 
   @Column({ type: 'text', nullable: true })

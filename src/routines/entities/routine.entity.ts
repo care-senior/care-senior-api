@@ -13,7 +13,11 @@ import { Clinic } from '../../clinics/entities/clinic.entity.js';
 import { Resident } from '../../residents/entities/resident.entity.js';
 import { Room } from '../../rooms/entities/room.entity.js';
 import { Activity } from '../../activities/entities/activity.entity.js';
-import { ActivityType, RoutineScope, Weekday } from '../../common/enums/index.js';
+import {
+  ActivityType,
+  RoutineScope,
+  Weekday,
+} from '../../common/enums/index.js';
 
 @Entity('routines')
 export class Routine {
@@ -30,16 +34,21 @@ export class Routine {
   @Column()
   title!: string;
 
-  @Column({ name: 'activity_type', type: 'enum', enum: ActivityType })
+  @Column({
+    name: 'activity_type',
+    type: 'enum',
+    enum: ActivityType,
+    enumName: 'activity_type',
+  })
   activityType!: ActivityType;
 
   @Column()
   time!: string;
 
-  @Column({ type: 'enum', enum: Weekday, array: true })
+  @Column({ type: 'enum', enum: Weekday, enumName: 'weekday', array: true })
   weekdays!: Weekday[];
 
-  @Column({ type: 'enum', enum: RoutineScope })
+  @Column({ type: 'enum', enum: RoutineScope, enumName: 'routine_scope' })
   scope!: RoutineScope;
 
   @ManyToMany(() => Resident)

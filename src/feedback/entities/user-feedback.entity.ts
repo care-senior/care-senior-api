@@ -1,4 +1,9 @@
-import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
 import { UserRole } from '../../common/enums/index.js';
 
 @Entity('user_feedback')
@@ -12,7 +17,12 @@ export class UserFeedback {
   @Column({ name: 'author_name' })
   authorName!: string;
 
-  @Column({ name: 'author_role', type: 'enum', enum: UserRole })
+  @Column({
+    name: 'author_role',
+    type: 'enum',
+    enum: UserRole,
+    enumName: 'user_role',
+  })
   authorRole!: UserRole;
 
   @Column({ type: 'int' })
@@ -21,6 +31,6 @@ export class UserFeedback {
   @Column({ type: 'text' })
   message!: string;
 
-  @CreateDateColumn({ name: 'sent_at' })
+  @CreateDateColumn({ name: 'sent_at', type: 'timestamptz' })
   sentAt!: Date;
 }
