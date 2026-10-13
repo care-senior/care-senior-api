@@ -218,6 +218,41 @@ export class ResidentsService {
     return GuardianResponseDto.fromEntity(guardian, currentUser);
   }
 
+  async removeGuardian(
+    id: string,
+    guardianId: string,
+    currentUser: AuthenticatedUser,
+  ): Promise<void> {
+    const clinicId = this.ownClinicId(currentUser);
+    await this.dataSource.transaction(async (manager) => {
+      const resident = await this.lockResident(manager, id);
+      this.assertLinkedTo(resident, clinicId);
+      const guardians = await manager
+        .getRepository(Guardian)
+        .createQueryBuilder('guardian')
+        .select('guardian.id')
+        .innerJoin('guardian.residents', 'resident', 'resident.id = :id', {
+          id,
+        })
+        .getMany();
+      if (!guardians.some((guardian) => guardian.id === guardianId)) {
+        throw new NotFoundException(
+          `Guardian ${guardianId} is not a guardian of resident ${id}`,
+        );
+      }
+      if (guardians.length === 1) {
+        throw new ConflictException(
+          'A resident must keep at least one guardian',
+        );
+      }
+      await manager
+        .createQueryBuilder()
+        .relation(Guardian, 'residents')
+        .of(guardianId)
+        .remove(id);
+    });
+  }
+
   private whereHasGuardian(
     queryBuilder: SelectQueryBuilder<Resident>,
     guardianId: string,
@@ -242,8 +277,8 @@ export class ResidentsService {
     return resident;
   }
 
-  // Locks the resident row so concurrent link/change-room calls on the same
-  // resident run one after the other.
+  // Locks the resident row so concurrent changes to the same resident (link,
+  // change of room, guardian removal) run one after the other.
   private async lockResident(
     manager: EntityManager,
     id: string,

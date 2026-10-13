@@ -209,7 +209,7 @@ O responsável vê os próprios idosos, vinculados ou não. Um colaborador vê o
 | POST   | `/residents/:id/change-room`           | Trocar de quarto (`roomId` no body)                                 | Web     | ✅ implementado — qualquer colaborador da clínica; quarto precisa ter leito livre |
 | GET    | `/residents/:id/guardians`             | Responsáveis do idoso, paginado                                     | Ambos   | ✅ implementado                                   |
 | POST   | `/residents/:id/guardians`             | Adicionar mais um responsável                                       | Ambos   | ✅ implementado — qualquer colaborador da clínica; cria a conta e envia o convite; `409` se o e-mail existir |
-| DELETE | `/residents/:id/guardians/:guardianId` | Remover um responsável específico                                   | —       | **planejado** — item em aberto, sem tela ainda   |
+| DELETE | `/residents/:id/guardians/:guardianId` | Remover um responsável específico                                   | —       | ✅ implementado — `@Roles(COORDINATOR, NURSE)`, só idoso da própria clínica; desfaz só o vínculo, a conta do responsável continua; o idoso nunca fica sem responsável (`409`); `204`. Sem tela ainda |
 
 ### Rooms
 

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -110,5 +111,17 @@ export class ResidentsController {
     @CurrentUser() currentUser: AuthenticatedUser,
   ): Promise<GuardianResponseDto> {
     return this.residentsService.addGuardian(id, dto, currentUser);
+  }
+
+  /** Unlinks the guardian from the resident; the guardian account stays. */
+  @Delete(':id/guardians/:guardianId')
+  @Roles(...ROLES_THAT_MANAGE_REQUESTS)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  removeGuardian(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('guardianId', ParseUUIDPipe) guardianId: string,
+    @CurrentUser() currentUser: AuthenticatedUser,
+  ): Promise<void> {
+    return this.residentsService.removeGuardian(id, guardianId, currentUser);
   }
 }
