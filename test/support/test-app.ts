@@ -8,7 +8,7 @@ import { AppModule } from '../../src/app.module.js';
 import { StaffRole } from '../../src/common/enums/index.js';
 import { encryptField } from '../../src/common/crypto/field-encryption.js';
 import { configureApp } from '../../src/configure-app.js';
-import { MailService } from '../../src/mail/mail.service.js';
+import { MailService } from '../../src/infra/mail/services/mail.service.js';
 
 export const TEST_PASSWORD = 'correct-horse-battery';
 export const TEST_CPF = '52998224725';
