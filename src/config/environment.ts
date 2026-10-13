@@ -36,7 +36,7 @@ export class Environment {
 
   @IsString()
   @MinLength(32)
-  JWT_ACCESS_SECRET!: string;
+  JWT_SECRET!: string;
 
   @Matches(DURATION)
   JWT_ACCESS_TTL = '15m';
@@ -55,7 +55,7 @@ export class Environment {
       .filter(Boolean),
   )
   @IsUrl({ require_tld: false }, { each: true })
-  CORS_ORIGINS: string[] = [];
+  CORS_ORIGIN: string[] = [];
 
   @Transform(({ value }) => value !== 'false')
   @IsBoolean()

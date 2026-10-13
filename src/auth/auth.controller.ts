@@ -16,9 +16,9 @@ import type { Request, Response } from 'express';
 import { UserRole } from '../common/enums/index.js';
 import type { Environment } from '../config/environment.js';
 import { AuthService, type AuthResult } from './auth.service.js';
-import type { AuthenticatedUser } from './authenticated-user.js';
-import { CurrentUser } from './decorators/current-user.decorator.js';
-import { Public } from './decorators/public.decorator.js';
+import { CurrentUser } from '../common/decorators/current-user.decorator.js';
+import { Public } from '../common/decorators/public.decorator.js';
+import type { AuthenticatedUser } from '../common/types/authenticated-user.interface.js';
 import { AuthResponseDto } from './dto/auth-response.dto.js';
 import { AuthUserDto } from './dto/auth-user.dto.js';
 import { ForgotPasswordDto } from './dto/forgot-password.dto.js';
@@ -88,7 +88,7 @@ export class AuthController {
     @Res({ passthrough: true }) response: Response,
   ): Promise<AuthResponseDto> {
     const refreshToken = dto.refreshToken ?? readRefreshTokenCookie(request);
-    if (!refreshToken) throw new UnauthorizedException('Missing refresh token');
+    if (!refreshToken) throw new UnauthorizedException('Refresh token ausente');
 
     const result = await this.auth.refresh(refreshToken);
     return this.deliverSession(request, response, result);
@@ -109,8 +109,8 @@ export class AuthController {
 
   @ApiBearerAuth()
   @Get('me')
-  me(@CurrentUser() user: AuthenticatedUser): Promise<AuthUserDto> {
-    return this.auth.me(user);
+  me(@CurrentUser() currentUser: AuthenticatedUser): Promise<AuthUserDto> {
+    return this.auth.me(currentUser);
   }
 
   @Public()

@@ -1,5 +1,6 @@
+import { JwtService } from '@nestjs/jwt';
 import request from 'supertest';
-import { StaffRole } from '../src/common/enums/index.js';
+import { StaffRole, UserRole } from '../src/common/enums/index.js';
 import {
   createTestApp,
   TEST_PASSWORD,
@@ -38,7 +39,7 @@ describe('Auth (e2e)', () => {
         expiresIn: 900,
         user: {
           id: staff.id,
-          userRole: 'staff',
+          role: UserRole.STAFF,
           email: staff.email,
           staffRole: StaffRole.COORDINATOR,
           clinicId: expect.any(String),
@@ -96,10 +97,24 @@ describe('Auth (e2e)', () => {
         .get(`${AUTH}/me`)
         .set('Authorization', `Bearer ${body.accessToken}`)
         .expect(200);
-      expect(me.body).toMatchObject({ id: staff.id, userRole: 'staff' });
+      expect(me.body).toMatchObject({ id: staff.id, role: UserRole.STAFF });
     });
 
-    it('rotates the refresh token and kills the session when an old one is replayed', async () => {
+    it('accepts a token signed with JWT_SECRET as described in the guide', async () => {
+      const staff = await testApp.createStaffMember({ role: StaffRole.NURSE });
+      const token = new JwtService({ secret: process.env.JWT_SECRET }).sign({
+        sub: staff.id,
+        role: UserRole.STAFF,
+        staffRole: StaffRole.NURSE,
+      });
+
+      await http()
+        .get(`${AUTH}/me`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+    });
+
+    it('rotates the refresh token and ends the session when an old one is replayed', async () => {
       const staff = await testApp.createStaffMember();
       const { body: login } = await loginStaff(staff.email);
 

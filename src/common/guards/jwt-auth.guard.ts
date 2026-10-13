@@ -6,9 +6,9 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
-import type { AuthenticatedUser } from '../authenticated-user.js';
+import { JwtTokensService } from '../../auth/jwt-tokens.service.js';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator.js';
-import { JwtTokensService } from '../jwt-tokens.service.js';
+import type { AuthenticatedUser } from '../types/authenticated-user.interface.js';
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -29,7 +29,7 @@ export class JwtAuthGuard implements CanActivate {
       .getRequest<Request & { user?: AuthenticatedUser }>();
     const [scheme, token] = request.headers.authorization?.split(' ') ?? [];
     if (scheme !== 'Bearer' || !token) {
-      throw new UnauthorizedException('Missing bearer token');
+      throw new UnauthorizedException('Token de acesso ausente');
     }
 
     request.user = await this.jwtTokens.verifyAccessToken(token);

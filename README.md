@@ -130,7 +130,7 @@ Além dos endpoints, falta o convite de quem é cadastrado pela equipe (`/auth/*
 - Aninhamento de no máximo 1 nível, só quando o sub-recurso não existe sozinho fora do pai (`/residents/:id/guardians`); o resto é rota plana com filtro.
 - `PATCH` pra atualização parcial — nunca `PUT`.
 - Ação que não é CRUD puro (aprovar, iniciar, desvincular) vira sub-rota verbo no infinitivo: `POST /resource/:id/acao`.
-- Toda rota exige o `JwtAuthGuard` (global) — rotas abertas são marcadas com `@Public()`. Restrição por tipo de usuário usa `@Roles(UserRole.STAFF)`; por cargo, `@StaffRoles(...ROLES_THAT_MANAGE_REQUESTS)`. O usuário logado chega no controller via `@CurrentUser()`.
+- Toda rota exige o `JwtAuthGuard` (global) — rotas abertas são marcadas com `@Public()`. Rotas restritas por cargo usam `@Roles(...ROLES_THAT_MANAGE_REQUESTS)` (valores de `StaffRole`), checado pelo `RolesGuard`; sem `@Roles`, qualquer usuário autenticado passa e a checagem de propriedade fica no service. O usuário logado chega no controller via `@CurrentUser()` (`AuthenticatedUser`: `id`, `role`, `staffRole?`, `clinicId?`). Decorators, guards e esse tipo ficam em `src/common/`.
 - Entrada/saída tipadas por DTO (`CreateXDto`, `UpdateXDto`, `XResponseDto`) com `class-validator`/`class-transformer`. O `XResponseDto` de `ActivityParticipant` **não inclui `registeredBy`** quando quem pediu é `guardian` — ver "Decisões de modelagem" acima.
 - Paginação padrão em toda lista (`?page=&limit=`).
 
@@ -150,9 +150,9 @@ Além dos endpoints, falta o convite de quem é cadastrado pela equipe (`/auth/*
 | POST   | `/auth/staff/accept-invite`      | Define a senha do colaborador recém-cadastrado (body: `token`, `password`)       | Web     | completa o `POST /staff` — ver nota abaixo      |
 | POST   | `/auth/guardian/accept-invite`   | Define a senha do responsável cadastrado via walk-in (body: `token`, `password`) | Ambos   | completa o `POST /guardians` — ver nota abaixo  |
 
-**Sessão:** o login devolve um access token JWT (`Authorization: Bearer`, 15 min por padrão) e um refresh token JWT (30 dias), ambos com o id da sessão (`auth_sessions`). Cada `POST /auth/refresh` gira o refresh token; reapresentar um refresh já usado derruba a sessão inteira (sinal de que o token vazou). `logout` e `reset-password` revogam sessões, mas um access token já emitido continua válido até expirar.
+**Sessão:** o login devolve um access token JWT (`Authorization: Bearer`, 15 min por padrão, assinado com `JWT_SECRET`, payload `{ sub, role, staffRole?, clinicId? }`) e um refresh token JWT (30 dias, assinado com `JWT_REFRESH_SECRET`) ligado a uma linha de `auth_sessions`. Cada `POST /auth/refresh` gira o refresh token; reapresentar um refresh já usado derruba a sessão inteira (sinal de que o token vazou). `logout` e `reset-password` revogam sessões, mas um access token já emitido continua válido até expirar.
 
-**Web vs. mobile:** o mobile recebe o `refreshToken` no body e o devolve no body de `refresh`/`logout`. O web app envia o header `X-Client-Platform: web` e recebe o refresh token só num cookie `httpOnly`, `SameSite=Strict`, restrito a `/api/v1/auth` — as chamadas do web precisam de `credentials: 'include'`, e a origem dele precisa estar em `CORS_ORIGINS`.
+**Web vs. mobile:** o mobile recebe o `refreshToken` no body e o devolve no body de `refresh`/`logout`. O web app envia o header `X-Client-Platform: web` e recebe o refresh token só num cookie `httpOnly`, `SameSite=Strict`, restrito a `/api/v1/auth` — as chamadas do web precisam de `credentials: 'include'`, e a origem dele precisa estar em `CORS_ORIGIN`. Esse header é a **única exceção** à regra de nunca ramificar por cliente: ele escolhe só como o refresh token é entregue, nunca autorização ou regra de negócio.
 
 **Segurança:** senhas com argon2id (mínimo 8 caracteres); login, `forgot-password` e `reset-password` limitados a 5 tentativas por minuto por IP + e-mail; respostas de login e `forgot-password` não revelam se o e-mail existe. O link de redefinição (`PASSWORD_RESET_URL?token=...`) vale 1 hora, é de uso único e pedir outro invalida o anterior.
 

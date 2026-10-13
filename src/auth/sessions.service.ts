@@ -19,7 +19,7 @@ export class SessionsService {
     return this.sessions.save(
       this.sessions.create({
         userId: account.id,
-        userRole: account.userRole,
+        userRole: account.role,
         refreshTokenId: randomUUID(),
         expiresAt: new Date(now.getTime() + ttlMs),
         lastUsedAt: now,
@@ -33,7 +33,7 @@ export class SessionsService {
       throw new UnauthorizedException('Session expired');
     }
     // A refresh token that was already rotated is being replayed: someone else
-    // may hold a copy, so the whole session is killed instead of just this request.
+    // may hold a copy, so the whole session is ended, not just this request.
     if (session.refreshTokenId !== refreshToken.jti) {
       await this.revoke(session.id);
       throw new UnauthorizedException('Session expired');

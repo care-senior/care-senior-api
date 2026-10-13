@@ -2,8 +2,9 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module.js';
+import { CLIENT_PLATFORM_HEADER } from './auth/refresh-token-cookie.js';
 import type { Environment } from './config/environment.js';
-import { API_PREFIX, configureApp } from './configure-app.js';
+import { configureApp } from './configure-app.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -11,7 +12,9 @@ async function bootstrap() {
 
   configureApp(app);
   app.enableCors({
-    origin: config.get('CORS_ORIGINS', { infer: true }),
+    origin: config.get('CORS_ORIGIN', { infer: true }),
+    methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization', CLIENT_PLATFORM_HEADER],
     credentials: true,
   });
 
@@ -22,7 +25,7 @@ async function bootstrap() {
     .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(app, documentConfig);
-  SwaggerModule.setup(`${API_PREFIX}/docs`, app, document);
+  SwaggerModule.setup('api/docs', app, document);
 
   await app.listen(process.env.PORT ?? 3000);
 }

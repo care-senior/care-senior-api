@@ -33,7 +33,7 @@ export class OneTimeTokensService {
     await this.tokens.update(
       {
         userId: account.id,
-        userRole: account.userRole,
+        userRole: account.role,
         purpose,
         usedAt: IsNull(),
       },
@@ -43,7 +43,7 @@ export class OneTimeTokensService {
     const token = randomBytes(TOKEN_BYTES).toString('base64url');
     await this.tokens.insert({
       userId: account.id,
-      userRole: account.userRole,
+      userRole: account.role,
       purpose,
       tokenHash: hashToken(token),
       expiresAt: new Date(now.getTime() + ttlMs),

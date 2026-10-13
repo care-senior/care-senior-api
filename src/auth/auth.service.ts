@@ -1,12 +1,12 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AuthTokenPurpose, UserRole } from '../common/enums/index.js';
+import type { AuthenticatedUser } from '../common/types/authenticated-user.interface.js';
 import type { Environment } from '../config/environment.js';
 import { MailService } from '../mail/mail.service.js';
 import { AccountsService, type Account } from './accounts.service.js';
-import type { AuthenticatedUser } from './authenticated-user.js';
 import type { AuthResponseDto } from './dto/auth-response.dto.js';
-import type { AuthUserDto } from './dto/auth-user.dto.js';
+import { AuthUserDto } from './dto/auth-user.dto.js';
 import type { LoginDto } from './dto/login.dto.js';
 import type { ResetPasswordDto } from './dto/reset-password.dto.js';
 import type { AuthSession } from './entities/auth-session.entity.js';
@@ -37,13 +37,10 @@ export class AuthService {
   }
 
   async login(
-    userRole: UserRole,
+    role: UserRole,
     { email, password }: LoginDto,
   ): Promise<AuthResult> {
-    const account = await this.accounts.findByEmailWithPassword(
-      userRole,
-      email,
-    );
+    const account = await this.accounts.findByEmailWithPassword(role, email);
     const isValid = await this.passwords.verify(
       account?.passwordHash,
       password,
@@ -81,17 +78,17 @@ export class AuthService {
     if (payload) await this.sessions.revoke(payload.sid);
   }
 
-  async me(user: AuthenticatedUser): Promise<AuthUserDto> {
-    const account = await this.accounts.findById(user.userRole, user.id);
-    if (!account) throw new UnauthorizedException();
-    return this.toAuthUser(account);
+  async me(currentUser: AuthenticatedUser): Promise<AuthUserDto> {
+    const account = await this.accounts.findById(
+      currentUser.role,
+      currentUser.id,
+    );
+    if (!account) throw new UnauthorizedException('Session expired');
+    return AuthUserDto.fromAccount(account);
   }
 
-  async requestPasswordReset(userRole: UserRole, email: string) {
-    const account = await this.accounts.findByEmailWithPassword(
-      userRole,
-      email,
-    );
+  async requestPasswordReset(role: UserRole, email: string) {
+    const account = await this.accounts.findByEmailWithPassword(role, email);
     if (!account) return;
 
     const token = await this.oneTimeTokens.issue(
@@ -101,6 +98,7 @@ export class AuthService {
     );
     const resetUrl = new URL(this.passwordResetUrl);
     resetUrl.searchParams.set('token', token);
+
     // The response must not depend on whether the e-mail exists, so a mail
     // failure is logged instead of surfacing as an error to the caller.
     await this.mail
@@ -135,26 +133,14 @@ export class AuthService {
     session: AuthSession,
   ): Promise<AuthResult> {
     const [{ accessToken, expiresIn }, refreshToken] = await Promise.all([
-      this.jwtTokens.signAccessToken(account, session.id),
+      this.jwtTokens.signAccessToken(account),
       this.jwtTokens.signRefreshToken(session),
     ]);
     return {
       accessToken,
       refreshToken,
       expiresIn,
-      user: this.toAuthUser(account),
-    };
-  }
-
-  private toAuthUser(account: Account): AuthUserDto {
-    return {
-      id: account.id,
-      userRole: account.userRole,
-      name: account.name,
-      email: account.email,
-      photoPath: account.photoPath,
-      staffRole: account.staffRole,
-      clinicId: account.clinicId,
+      user: AuthUserDto.fromAccount(account),
     };
   }
 }

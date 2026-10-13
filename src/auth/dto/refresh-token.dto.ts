@@ -1,7 +1,7 @@
 import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class RefreshTokenDto {
-  /** Mobile clients send it here; the web app sends it in the httpOnly cookie. */
+  /** Sent by the mobile app; the web app relies on the httpOnly cookie instead. */
   @IsOptional()
   @IsString()
   @IsNotEmpty()
