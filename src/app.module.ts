@@ -14,6 +14,7 @@ import { MessagesModule } from './modules/messages/messages.module.js';
 import { NotificationsModule } from './modules/notifications/notifications.module.js';
 import { ActivityReminder } from './modules/notifications/entities/activity-reminder.entity.js';
 import { OutingRequestsModule } from './modules/outing-requests/outing-requests.module.js';
+import { ReportsModule } from './modules/reports/reports.module.js';
 import { ResidentsModule } from './modules/residents/residents.module.js';
 import { RoomsModule } from './modules/rooms/rooms.module.js';
 import { RoutinesModule } from './modules/routines/routines.module.js';
@@ -31,6 +32,7 @@ import { Activity } from './modules/activities/entities/activity.entity.js';
 import { ActivityParticipant } from './modules/activities/entities/activity-participant.entity.js';
 import { Routine } from './modules/routines/entities/routine.entity.js';
 import { RoutineOccurrence } from './modules/routines/entities/routine-occurrence.entity.js';
+import { OccupancySnapshot } from './modules/reports/entities/occupancy-snapshot.entity.js';
 import { Medication } from './modules/medications/entities/medication.entity.js';
 import { HealthRecord } from './modules/health-records/entities/health-record.entity.js';
 import { Message } from './modules/messages/entities/message.entity.js';
@@ -49,6 +51,7 @@ const ENTITIES = [
   ActivityParticipant,
   Routine,
   RoutineOccurrence,
+  OccupancySnapshot,
   Medication,
   HealthRecord,
   Message,
@@ -87,6 +90,7 @@ const ENTITIES = [
     MessagesModule,
     FeedbackModule,
     RoutinesModule,
+    ReportsModule,
     NotificationsModule,
     OutingRequestsModule,
     ResidentsModule,

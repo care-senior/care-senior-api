@@ -88,6 +88,7 @@ Cada entidade mapeia 1:1 com as tabelas descritas no [README do app mobile](../c
 | `AppNotification` / `NotificationRecipient` | Notificação e o controle de leitura por destinatário                       |
 | `ActivityReminder`                          | Lembrete de uma `Activity` já enviado (um por tipo), pra não repetir       |
 | `RoutineOccurrence`                         | Horário que uma `Routine` já gerou, e a atividade que ela ainda gerencia   |
+| `OccupancySnapshot`                         | Ocupação de uma clínica no fim de cada dia, pros relatórios                |
 
 ## Decisões de modelagem
 
@@ -126,7 +127,7 @@ docker compose run --rm api-dev npm run db:migrate
 docker compose run --rm api-dev npm run db:seed
 ```
 
-O seed cria a clínica "Residencial Vida Plena" com uma coordenadora (`coordenadora@caresenior.dev`), uma enfermeira (`enfermeira@caresenior.dev`), um cuidador (`cuidador@caresenior.dev`) e uma responsável (`responsavel@caresenior.dev`), todos com a senha `careSenior123`, além de um medicamento da idosa Maria (Losartana) e três atividades de hoje dela (a dose da Losartana e o café concluídos, a fisioterapia pendente) de duas medições de hoje (pressão e glicose), de uma troca de recados com a família, de uma solicitação de saída pendente dela, de dois feedbacks do app, de duas rotinas (aferição de pressão diária e roda de música no quarto 12B — as atividades delas aparecem na próxima execução do job, de hora em hora) e de uma solicitação de vínculo pendente (`vinculo-pendente@caresenior.dev`). Os e-mails enviados pela API (recuperação de senha) aparecem no Mailpit em `http://localhost:8025` — use `SMTP_HOST=mailpit` e `SMTP_PORT=1025` no `.env`.
+O seed cria a clínica "Residencial Vida Plena" com uma coordenadora (`coordenadora@caresenior.dev`), uma enfermeira (`enfermeira@caresenior.dev`), um cuidador (`cuidador@caresenior.dev`) e uma responsável (`responsavel@caresenior.dev`), todos com a senha `careSenior123`, além de um medicamento da idosa Maria (Losartana) e três atividades de hoje dela (a dose da Losartana e o café concluídos, a fisioterapia pendente) de duas medições de hoje (pressão e glicose), de uma troca de recados com a família, de uma solicitação de saída pendente dela, de dois feedbacks do app, de um mês de histórico de ocupação, de duas rotinas (aferição de pressão diária e roda de música no quarto 12B — as atividades delas aparecem na próxima execução do job, de hora em hora) e de uma solicitação de vínculo pendente (`vinculo-pendente@caresenior.dev`). Os e-mails enviados pela API (recuperação de senha) aparecem no Mailpit em `http://localhost:8025` — use `SMTP_HOST=mailpit` e `SMTP_PORT=1025` no `.env`.
 
 `DB_HOST` no `.env` aponta pro nome do serviço (`db`), não `localhost` — de dentro do container da API, `localhost` seria o próprio container.
 
@@ -142,9 +143,9 @@ docker compose run --rm api-dev npm run test:e2e
 
 ## O que falta implementar
 
-Hoje existem as entidades TypeORM, o schema SQL, a autenticação (`/auth`) e os módulos de clinics, staff, guardians, residents, rooms, activities, medications, outing-requests, health-records, messages, notifications, feedback e routines — as rotas prontas estão marcadas com ✅ nas tabelas abaixo; os demais domínios ainda não têm service, controller ou endpoint. O contrato de API abaixo é o mapeamento pra atender os dois clientes (mobile + web) sobre a mesma base de dados; "Cliente" na última coluna indica quem consome cada rota hoje, só pra saber o que quebra se o contrato mudar.
+Hoje existem as entidades TypeORM, o schema SQL, a autenticação (`/auth`) e os módulos de clinics, staff, guardians, residents, rooms, activities, medications, outing-requests, health-records, messages, notifications, feedback, routines e reports — todas as rotas das tabelas abaixo estão implementadas (✅). O que ainda falta fora delas está logo abaixo. O contrato de API abaixo é o mapeamento pra atender os dois clientes (mobile + web) sobre a mesma base de dados; "Cliente" na última coluna indica quem consome cada rota hoje, só pra saber o que quebra se o contrato mudar.
 
-Além dos endpoints, falta o upload de fotos (`photoPath`). Os medicamentos informados no autocadastro e no cadastro walk-in não têm rota própria: o app chama `POST /medications` uma vez por medicamento logo depois de criar o idoso.
+Além dos endpoints, falta o upload de fotos (`photoPath`) e uma rota pra cancelar uma atividade (o status `cancelled` existe, mas nada o grava). Os medicamentos informados no autocadastro e no cadastro walk-in não têm rota própria: o app chama `POST /medications` uma vez por medicamento logo depois de criar o idoso.
 
 **Convenções gerais** (padrão NestJS):
 
@@ -357,13 +358,17 @@ Os lembretes vêm de um job a cada 5 minutos (`@nestjs/schedule`). Cada lembrete
 
 ### Reports (exclusivo web)
 
-Agregações só de leitura sobre entidades que já existem — nenhuma tabela de "relatório" precisa ser persistida.
+Agregações só de leitura sobre a clínica de quem pede — qualquer colaborador, menos o resumo de feedback, que segue a regra de `GET /feedback` (coordenadora e enfermeira). `?clinicId=`, quando enviado, precisa ser a própria clínica. O período (`?from=&to=`, ISO 8601 com fuso) é por padrão os últimos 30 dias, com no máximo 366; os dias são datas de Brasília.
+
+- **Conclusão e adesão** contam só o que já venceu (horário até agora): o que ainda vai acontecer não é atraso. `late` é participante ainda `pending` depois do horário; `cancelled` fica de fora. Adesão a medicação = doses `completed` / doses vencidas de atividades `medication`.
+- **Ocupação ao longo do tempo** vem de `occupancy_snapshots`: um job de hora em hora regrava o retrato do dia de cada clínica, então cada dia passado guarda o último valor dele. O dia de hoje é calculado na hora; dias antes do primeiro retrato não têm ponto.
+- Taxas vão de 0 a 1, com 4 casas, e são `null` quando não há o que medir.
 
 | Método | Endpoint                        | Descrição                                            | Cliente | Observação |
-| ------ | ---------------------------------- | ----------------------------------------------------------- | ------- | ------------ |
-| GET    | `/reports/overview`             | KPIs do dashboard (`?clinicId=`)                     | Web     |            |
-| GET    | `/reports/activities-by-type`   | Distribuição por `ActivityType` (`?from=&to=`)       | Web     |            |
-| GET    | `/reports/medication-adherence` | Série temporal de adesão (`?from=&to=`)              | Web     |            |
-| GET    | `/reports/activity-completion`  | % concluída/pulada/atrasada (`?from=&to=`)           | Web     |            |
-| GET    | `/reports/occupancy`            | Ocupação de quartos ao longo do tempo (`?from=&to=`) | Web     |            |
-| GET    | `/reports/feedback-summary`     | Média e histograma de notas (`?clinicId=`)           | Web     |            |
+| ------ | ------------------------------- | ---------------------------------------------------- | ------- | ---------- |
+| GET    | `/reports/overview`             | Números do dashboard agora (`?clinicId=`): idosos, colaboradores ativos, leitos, solicitações pendentes | Web     | ✅ implementado |
+| GET    | `/reports/activities-by-type`   | Atividades por `ActivityType` no período, todos os tipos | Web     | ✅ implementado |
+| GET    | `/reports/medication-adherence` | Adesão no período e por dia                           | Web     | ✅ implementado |
+| GET    | `/reports/activity-completion`  | Concluídas/puladas/atrasadas/em andamento e % no período | Web     | ✅ implementado |
+| GET    | `/reports/occupancy`            | Ocupação de quartos por dia no período               | Web     | ✅ implementado |
+| GET    | `/reports/feedback-summary`     | Média e histograma de notas no período               | Web     | ✅ implementado — `@Roles(COORDINATOR, NURSE)` |
