@@ -4,7 +4,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module.js';
 import { CLIENT_PLATFORM_HEADER } from './auth/refresh-token-cookie.js';
 import type { Environment } from './config/environment.js';
-import { configureApp } from './configure-app.js';
+import { configureApp, DOCS_PATH } from './configure-app.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -25,7 +25,7 @@ async function bootstrap() {
     .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(app, documentConfig);
-  SwaggerModule.setup('api/docs', app, document);
+  SwaggerModule.setup(DOCS_PATH, app, document);
 
   await app.listen(process.env.PORT ?? 3000);
 }

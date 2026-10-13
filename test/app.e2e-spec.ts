@@ -12,10 +12,14 @@ describe('AppController (e2e)', () => {
     await testApp.close();
   });
 
-  it('GET /api/v1 is public', () => {
+  it('redirects the root to the API docs without requiring a token', () => {
     return request(testApp.app.getHttpServer())
-      .get('/api/v1')
-      .expect(200)
-      .expect('Hello World!');
+      .get('/')
+      .expect(302)
+      .expect('Location', '/api/docs');
+  });
+
+  it('keeps every other route under the api prefix', () => {
+    return request(testApp.app.getHttpServer()).get('/clinics').expect(404);
   });
 });
