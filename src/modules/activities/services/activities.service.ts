@@ -48,12 +48,7 @@ import type { QueryActivitiesDto } from '../dto/query-activities.dto.js';
 import type { UpdateActivityDto } from '../dto/update-activity.dto.js';
 import { ActivityParticipant } from '../entities/activity-participant.entity.js';
 import { Activity } from '../entities/activity.entity.js';
-
-const OPEN_STATUSES = [
-  ActivityStatus.PENDING,
-  ActivityStatus.IN_PROGRESS,
-  ActivityStatus.LATE,
-];
+import { OPEN_STATUSES } from '../utils/medication-doses.js';
 
 type Outcome = Pick<
   ActivityParticipant,
