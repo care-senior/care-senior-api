@@ -7,6 +7,7 @@ import {
   IsString,
   IsUrl,
   Matches,
+  Min,
   MinLength,
   validateSync,
 } from 'class-validator';
@@ -60,6 +61,11 @@ export class Environment {
   @Transform(({ value }) => value !== 'false')
   @IsBoolean()
   COOKIE_SECURE = true;
+
+  @Transform(({ value }) => Number(value || 0))
+  @IsInt()
+  @Min(0)
+  TRUST_PROXY = 0;
 
   @IsString()
   @IsNotEmpty()

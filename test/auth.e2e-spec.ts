@@ -15,11 +15,11 @@ describe('Auth (e2e)', () => {
   let testApp: TestApp;
   const http = () => request(testApp.app.getHttpServer());
 
-  beforeAll(async () => {
+  beforeEach(async () => {
     testApp = await createTestApp();
   });
 
-  afterAll(async () => {
+  afterEach(async () => {
     await testApp.close();
   });
 
@@ -86,6 +86,33 @@ describe('Auth (e2e)', () => {
         await loginStaff(staff.email, 'wrong-password').expect(401);
       }
       await loginStaff(staff.email).expect(429);
+    });
+
+    it('throttles the same account whatever spaces or casing the e-mail has', async () => {
+      const staff = await testApp.createStaffMember();
+      for (let attempt = 0; attempt < 5; attempt++) {
+        await loginStaff(staff.email, 'wrong-password').expect(401);
+      }
+
+      for (const variant of [
+        ` ${staff.email}`,
+        `${staff.email}  `,
+        staff.email.toUpperCase(),
+      ]) {
+        await loginStaff(variant).expect(429);
+      }
+    });
+
+    it('throttles one client trying many accounts', async () => {
+      for (let attempt = 0; attempt < 20; attempt++) {
+        await loginStaff(`nobody-${attempt}@e2e.caresenior.dev`).expect(401);
+      }
+
+      await loginStaff('one-more@e2e.caresenior.dev').expect(429);
+      await http()
+        .post(`${AUTH}/staff/forgot-password`)
+        .send({ email: 'another@e2e.caresenior.dev' })
+        .expect(429);
     });
   });
 

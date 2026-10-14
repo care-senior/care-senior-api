@@ -13,20 +13,35 @@ import { AuthController } from './controllers/auth.controller.js';
 import { AuthService } from './services/auth.service.js';
 import { AuthSession } from './entities/auth-session.entity.js';
 import { AuthToken } from './entities/auth-token.entity.js';
-import { AuthThrottlerGuard } from './guards/auth-throttler.guard.js';
+import {
+  AuthThrottlerGuard,
+  keyAcrossAllRoutes,
+  trackClient,
+} from './guards/auth-throttler.guard.js';
 import { InvitationsService } from './services/invitations.service.js';
 import { JwtTokensService } from './services/jwt-tokens.service.js';
 import { OneTimeTokensService } from './services/one-time-tokens.service.js';
 import { PasswordService } from './services/password.service.js';
 import { SessionsService } from './services/sessions.service.js';
 
+const MINUTE_MS = 60_000;
 const AUTH_ATTEMPTS_PER_MINUTE = 5;
+const AUTH_ATTEMPTS_PER_CLIENT_PER_MINUTE = 20;
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([StaffMember, Guardian, AuthSession, AuthToken]),
     JwtModule.register({}),
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: AUTH_ATTEMPTS_PER_MINUTE }]),
+    ThrottlerModule.forRoot([
+      { name: 'account', ttl: MINUTE_MS, limit: AUTH_ATTEMPTS_PER_MINUTE },
+      {
+        name: 'client',
+        ttl: MINUTE_MS,
+        limit: AUTH_ATTEMPTS_PER_CLIENT_PER_MINUTE,
+        getTracker: trackClient,
+        generateKey: keyAcrossAllRoutes,
+      },
+    ]),
     MailModule,
   ],
   controllers: [AuthController],
