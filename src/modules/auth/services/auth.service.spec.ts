@@ -1,6 +1,7 @@
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
+import { DataSource } from 'typeorm';
 import { StaffRole, UserRole } from '../../../common/enums/index.js';
 import { MailService } from '../../../infra/mail/services/mail.service.js';
 import {
@@ -19,6 +20,7 @@ describe('AuthService', () => {
     findByEmailWithPassword: vi.fn(),
     findById: vi.fn(),
     updatePassword: vi.fn(),
+    setFirstPassword: vi.fn(),
     createGuardianWithResident: vi.fn(),
   };
   const passwords = { verify: vi.fn(), hash: vi.fn() };
@@ -36,6 +38,12 @@ describe('AuthService', () => {
   };
   const oneTimeTokens = { issue: vi.fn(), consume: vi.fn() };
   const mail = { sendPasswordReset: vi.fn() };
+  const manager = { name: 'transaction-manager' };
+  const dataSource = {
+    transaction: vi.fn((work: (m: typeof manager) => Promise<unknown>) =>
+      work(manager),
+    ),
+  };
 
   const coordinator: AccountWithPassword = {
     id: 'staff-1',
@@ -58,6 +66,7 @@ describe('AuthService', () => {
         { provide: SessionsService, useValue: sessions },
         { provide: OneTimeTokensService, useValue: oneTimeTokens },
         { provide: MailService, useValue: mail },
+        { provide: DataSource, useValue: dataSource },
         {
           provide: ConfigService,
           useValue: {
@@ -179,12 +188,12 @@ describe('AuthService', () => {
   });
 
   describe('acceptInvite', () => {
-    it('sets the password of the invited account', async () => {
+    it('consumes the invite and sets the first password in one transaction', async () => {
       oneTimeTokens.consume.mockResolvedValue({
         userId: 'staff-1',
         userRole: UserRole.STAFF,
       });
-      accounts.findById.mockResolvedValue(coordinator);
+      accounts.setFirstPassword.mockResolvedValue(true);
       passwords.hash.mockResolvedValue('new-hash');
 
       await service.acceptInvite(UserRole.STAFF, {
@@ -196,20 +205,22 @@ describe('AuthService', () => {
         'invite-token',
         'invite',
         UserRole.STAFF,
+        manager,
       );
-      expect(accounts.updatePassword).toHaveBeenCalledWith(
+      expect(accounts.setFirstPassword).toHaveBeenCalledWith(
         UserRole.STAFF,
         'staff-1',
         'new-hash',
+        manager,
       );
     });
 
-    it('rejects the invite of a deactivated account', async () => {
+    it('rejects the invite of an account already activated or deactivated', async () => {
       oneTimeTokens.consume.mockResolvedValue({
         userId: 'staff-1',
         userRole: UserRole.STAFF,
       });
-      accounts.findById.mockResolvedValue(null);
+      accounts.setFirstPassword.mockResolvedValue(false);
 
       await expect(
         service.acceptInvite(UserRole.STAFF, {
@@ -237,6 +248,7 @@ describe('AuthService', () => {
       UserRole.STAFF,
       'staff-1',
       'new-hash',
+      manager,
     );
     expect(sessions.revokeAllForUser).toHaveBeenCalledWith(
       'staff-1',

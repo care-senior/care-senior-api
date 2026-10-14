@@ -40,7 +40,7 @@ describe('GuardiansService', () => {
   };
   const residentRepository = { createQueryBuilder: vi.fn() };
   const clinicRepository = { existsBy: vi.fn() };
-  const invitations = { inviteGuardian: vi.fn() };
+  const invitations = { inviteGuardian: vi.fn(), prepareEmailChange: vi.fn() };
   const manager = {
     getRepository: vi.fn(),
     count: vi.fn(),
@@ -213,6 +213,52 @@ describe('GuardiansService', () => {
           guardianUser,
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('update', () => {
+    // Contacted the nurse's clinic, so the nurse may edit the guardian.
+    const contacted = () => guardian({ contactedClinicIds: ['clinic-1'] });
+
+    it('sends the invite to a corrected e-mail of a guardian not activated yet', async () => {
+      guardianRepository.findOne.mockResolvedValue(contacted());
+
+      const response = await service.update(
+        'guardian-1',
+        { email: 'fernanda.c@familia.com' },
+        nurse,
+      );
+
+      expect(invitations.prepareEmailChange).toHaveBeenCalledWith(manager, {
+        id: 'guardian-1',
+        role: UserRole.GUARDIAN,
+      });
+      expect(invitations.inviteGuardian).toHaveBeenCalledWith(
+        expect.objectContaining({ email: 'fernanda.c@familia.com' }),
+      );
+      expect(response.email).toBe('fernanda.c@familia.com');
+    });
+
+    it('keeps the e-mail of an activated guardian', async () => {
+      guardianRepository.findOne.mockResolvedValue(contacted());
+      invitations.prepareEmailChange.mockRejectedValueOnce(
+        new ConflictException(),
+      );
+
+      await expect(
+        service.update('guardian-1', { email: 'other@mail.com' }, nurse),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(manager.save).not.toHaveBeenCalled();
+      expect(invitations.inviteGuardian).not.toHaveBeenCalled();
+    });
+
+    it('edits the name without touching the invites', async () => {
+      guardianRepository.findOne.mockResolvedValue(contacted());
+
+      await service.update('guardian-1', { name: 'Fernanda C.' }, nurse);
+
+      expect(invitations.prepareEmailChange).not.toHaveBeenCalled();
+      expect(invitations.inviteGuardian).not.toHaveBeenCalled();
     });
   });
 

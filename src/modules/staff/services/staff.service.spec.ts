@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { QueryFailedError } from 'typeorm';
+import { DataSource, QueryFailedError } from 'typeorm';
 import { InvitationsService } from '../../auth/services/invitations.service.js';
 import { SessionsService } from '../../auth/services/sessions.service.js';
 import { StaffRole, UserRole } from '../../../common/enums/index.js';
@@ -33,8 +33,17 @@ describe('StaffService', () => {
     ),
     count: vi.fn(),
   };
-  const invitations = { inviteStaffMember: vi.fn() };
+  const invitations = {
+    inviteStaffMember: vi.fn(),
+    prepareEmailChange: vi.fn(),
+  };
   const sessions = { revokeAllForUser: vi.fn() };
+  const manager = { save: staffRepository.save };
+  const dataSource = {
+    transaction: vi.fn((work: (m: typeof manager) => Promise<unknown>) =>
+      work(manager),
+    ),
+  };
 
   const user = (staffRole: StaffRole, id = 'me'): AuthenticatedUser => ({
     id,
@@ -70,6 +79,7 @@ describe('StaffService', () => {
         { provide: getRepositoryToken(StaffMember), useValue: staffRepository },
         { provide: InvitationsService, useValue: invitations },
         { provide: SessionsService, useValue: sessions },
+        { provide: DataSource, useValue: dataSource },
       ],
     }).compile();
     service = module.get(StaffService);
@@ -152,6 +162,51 @@ describe('StaffService', () => {
       await expect(
         service.update('staff-1', { staffRole: StaffRole.NURSE }, coordinator),
       ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('sends the invite to a corrected e-mail of someone not activated yet', async () => {
+      staffRepository.findOne.mockResolvedValue(staffMember());
+
+      const response = await service.update(
+        'staff-1',
+        { email: 'bruno.k@clinica.com' },
+        coordinator,
+      );
+
+      expect(invitations.prepareEmailChange).toHaveBeenCalledWith(manager, {
+        id: 'staff-1',
+        role: UserRole.STAFF,
+      });
+      expect(invitations.inviteStaffMember).toHaveBeenCalledWith(
+        expect.objectContaining({ email: 'bruno.k@clinica.com' }),
+      );
+      expect(response.email).toBe('bruno.k@clinica.com');
+    });
+
+    it('keeps the e-mail of an activated account', async () => {
+      staffRepository.findOne.mockResolvedValue(staffMember());
+      invitations.prepareEmailChange.mockRejectedValueOnce(
+        new ConflictException(),
+      );
+
+      await expect(
+        service.update('staff-1', { email: 'other@clinica.com' }, nurse),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(staffRepository.save).not.toHaveBeenCalled();
+      expect(invitations.inviteStaffMember).not.toHaveBeenCalled();
+    });
+
+    it('leaves the invites alone when the e-mail does not change', async () => {
+      staffRepository.findOne.mockResolvedValue(staffMember());
+
+      await service.update(
+        'staff-1',
+        { name: 'Bruno K.', email: 'bruno@clinica.com' },
+        nurse,
+      );
+
+      expect(invitations.prepareEmailChange).not.toHaveBeenCalled();
+      expect(invitations.inviteStaffMember).not.toHaveBeenCalled();
     });
 
     it('rejects staff members from another clinic', async () => {

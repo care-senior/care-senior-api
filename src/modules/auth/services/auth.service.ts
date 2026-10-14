@@ -5,6 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { DataSource } from 'typeorm';
 import { AuthTokenPurpose, UserRole } from '../../../common/enums/index.js';
 import type { AuthenticatedUser } from '../../../common/types/authenticated-user.interface.js';
 import type { Environment } from '../../../config/environment.js';
@@ -38,6 +39,7 @@ export class AuthService {
     private readonly sessions: SessionsService,
     private readonly oneTimeTokens: OneTimeTokensService,
     private readonly mail: MailService,
+    private readonly dataSource: DataSource,
     config: ConfigService<Environment, true>,
   ) {
     this.passwordResetUrl = config.get('PASSWORD_RESET_URL', { infer: true });
@@ -137,33 +139,47 @@ export class AuthService {
       });
   }
 
+  // The token is consumed in the same transaction that stores the password,
+  // so an e-mail change revoking the links waits for a link being used now.
   async resetPassword({ token, password }: ResetPasswordDto) {
-    const owner = await this.oneTimeTokens.consume(
-      token,
-      AuthTokenPurpose.PASSWORD_RESET,
-    );
-    await this.accounts.updatePassword(
-      owner.userRole,
-      owner.userId,
-      await this.passwords.hash(password),
-    );
+    const passwordHash = await this.passwords.hash(password);
+    const owner = await this.dataSource.transaction(async (manager) => {
+      const tokenOwner = await this.oneTimeTokens.consume(
+        token,
+        AuthTokenPurpose.PASSWORD_RESET,
+        undefined,
+        manager,
+      );
+      await this.accounts.updatePassword(
+        tokenOwner.userRole,
+        tokenOwner.userId,
+        passwordHash,
+        manager,
+      );
+      return tokenOwner;
+    });
     await this.sessions.revokeAllForUser(owner.userId, owner.userRole);
   }
 
   async acceptInvite(role: UserRole, { token, password }: AcceptInviteDto) {
-    const owner = await this.oneTimeTokens.consume(
-      token,
-      AuthTokenPurpose.INVITE,
-      role,
-    );
-    const account = await this.accounts.findById(role, owner.userId);
-    if (!account) throw new BadRequestException('Invalid or expired token');
-
-    await this.accounts.updatePassword(
-      role,
-      account.id,
-      await this.passwords.hash(password),
-    );
+    const passwordHash = await this.passwords.hash(password);
+    await this.dataSource.transaction(async (manager) => {
+      const owner = await this.oneTimeTokens.consume(
+        token,
+        AuthTokenPurpose.INVITE,
+        role,
+        manager,
+      );
+      const isFirstPassword = await this.accounts.setFirstPassword(
+        role,
+        owner.userId,
+        passwordHash,
+        manager,
+      );
+      if (!isFirstPassword) {
+        throw new BadRequestException('Invalid or expired token');
+      }
+    });
   }
 
   private async buildAuthResult(
