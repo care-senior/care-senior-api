@@ -397,9 +397,14 @@ describe('Residents (e2e)', () => {
       const email = uniqueEmail('second-guardian');
       const body = { name: 'Paulo Souza', email, cpf: '529.982.247-25' };
 
-      const response = await http()
+      await http()
         .post(`${RESIDENTS}/${linkedResidentId}/guardians`)
         .set('Authorization', asCaregiver())
+        .send(body)
+        .expect(403);
+      const response = await http()
+        .post(`${RESIDENTS}/${linkedResidentId}/guardians`)
+        .set('Authorization', asNurse())
         .send(body)
         .expect(201);
 
@@ -415,7 +420,7 @@ describe('Residents (e2e)', () => {
 
       await http()
         .post(`${RESIDENTS}/${linkedResidentId}/guardians`)
-        .set('Authorization', asCaregiver())
+        .set('Authorization', asNurse())
         .send(body)
         .expect(409);
       await http()
@@ -433,7 +438,7 @@ describe('Residents (e2e)', () => {
     it('removes a guardian from the resident, but never the last one', async () => {
       const { body: secondGuardian } = await http()
         .post(`${RESIDENTS}/${linkedResidentId}/guardians`)
-        .set('Authorization', asCaregiver())
+        .set('Authorization', asNurse())
         .send({
           name: 'Paulo Souza',
           email: uniqueEmail('second-guardian'),

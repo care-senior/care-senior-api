@@ -2,7 +2,11 @@ import { JwtService } from '@nestjs/jwt';
 import request from 'supertest';
 import { StaffRole, UserRole } from '../src/common/enums/index.js';
 import { RemindersService } from '../src/modules/notifications/services/reminders.service.js';
-import { createTestApp, type TestApp } from './support/test-app.js';
+import {
+  createTestApp,
+  uniqueEmail,
+  type TestApp,
+} from './support/test-app.js';
 
 const API = '/api/v1';
 const NOTIFICATIONS = `${API}/notifications`;
@@ -251,6 +255,32 @@ describe('Notifications (e2e)', () => {
           ),
         },
       ]);
+    });
+
+    it('tells the family when someone else becomes a guardian of the resident', async () => {
+      const { body: newGuardian } = await http()
+        .post(`${API}/residents/${mariaId}/guardians`)
+        .set('Authorization', asCoordinator())
+        .send({
+          name: 'Paulo Souza',
+          email: uniqueEmail('new-guardian'),
+          cpf: '529.982.247-25',
+        })
+        .expect(201);
+
+      const expected = {
+        title: 'Novo responsável',
+        message:
+          'Paulo Souza foi cadastrado(a) como responsável de Maria Aparecida pela Clínica E2E.',
+      };
+      for (const family of [mariaFamily, mariaOtherFamily]) {
+        const { data } = await inbox(asGuardian(family));
+        expect(data.map(({ title, message }) => ({ title, message }))).toEqual([
+          expected,
+        ]);
+      }
+      expect(await titles(asGuardian(newGuardian))).toEqual([]);
+      expect(await titles(asGuardian(joseFamily))).toEqual([]);
     });
 
     it('tells each family only about the outcome of their own resident', async () => {

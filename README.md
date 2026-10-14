@@ -234,7 +234,7 @@ O responsável vê os próprios idosos, vinculados ou não. Um colaborador vê o
 | POST   | `/residents/:id/discharge`             | Desvincular/dar alta                                                | Ambos   | ✅ implementado — `@Roles(COORDINATOR, NURSE)`, só idoso da própria clínica |
 | POST   | `/residents/:id/change-room`           | Trocar de quarto (`roomId` no body)                                 | Web     | ✅ implementado — qualquer colaborador da clínica; quarto precisa ter leito livre |
 | GET    | `/residents/:id/guardians`             | Responsáveis do idoso, paginado                                     | Ambos   | ✅ implementado                                   |
-| POST   | `/residents/:id/guardians`             | Adicionar mais um responsável                                       | Ambos   | ✅ implementado — qualquer colaborador da clínica; cria a conta e envia o convite; `409` se o e-mail existir |
+| POST   | `/residents/:id/guardians`             | Adicionar mais um responsável                                       | Ambos   | ✅ implementado — `@Roles(COORDINATOR, NURSE)`, só idoso da própria clínica, como a remoção; cria a conta e envia o convite; avisa os demais responsáveis; `409` se o e-mail existir |
 | DELETE | `/residents/:id/guardians/:guardianId` | Remover um responsável específico                                   | —       | ✅ implementado — `@Roles(COORDINATOR, NURSE)`, só idoso da própria clínica; desfaz só o vínculo, a conta do responsável continua; o idoso nunca fica sem responsável (`409`); `204`. Sem tela ainda |
 
 ### Rooms
@@ -347,6 +347,7 @@ Caixa de entrada do usuário logado (staff ou responsável), mais recente primei
 | Saída aprovada/recusada (com o motivo)    | Responsáveis do idoso                                               |
 | Recado novo                               | Responsáveis do idoso e, se veio da família, a equipe da clínica — nunca quem enviou |
 | Vínculo aceito, alta registrada           | Responsáveis do idoso                                               |
+| Novo responsável cadastrado pela clínica  | Os demais responsáveis do idoso                                     |
 | Participante concluiu/pulou uma atividade, ou a atividade foi cancelada | Responsáveis daquele idoso (com nota, comentário ou motivo)         |
 | Atividade começa em até 30 min (`upcomingEvent`/`medicationUpcoming`) | Equipe ativa da clínica — só se ainda há participante `pending` |
 | Medicação sem registro 30 min depois do horário (`medicationOverdue`) | Equipe ativa da clínica                                |

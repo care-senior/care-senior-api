@@ -105,6 +105,7 @@ export class ResidentsController {
 
   /** Registers one more guardian for the resident and sends the invite. */
   @Post(':id/guardians')
+  @Roles(...ROLES_THAT_MANAGE_REQUESTS)
   addGuardian(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AddGuardianDto,

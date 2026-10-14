@@ -246,6 +246,14 @@ export class ResidentsService {
       throw error;
     }
     await this.invitations.inviteGuardian(guardian);
+    await this.notifier.notify(
+      {
+        type: NotificationType.GENERAL,
+        title: 'Novo responsável',
+        message: `${guardian.name} foi cadastrado(a) como responsável de ${resident.name} pela ${await this.clinicName(resident.clinicId!)}.`,
+      },
+      { guardiansOf: id, except: guardian.id },
+    );
     return GuardianResponseDto.fromEntity(guardian, currentUser);
   }
 
