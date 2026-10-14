@@ -280,6 +280,10 @@ describe('ResidentsService', () => {
       expect(invitations.inviteGuardian).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'guardian-2' }),
       );
+      expect(notifier.notify).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Novo responsável' }),
+        { guardiansOf: 'resident-1', except: 'guardian-2' },
+      );
     });
 
     it('maps a duplicated e-mail to 409 and sends no invite', async () => {
