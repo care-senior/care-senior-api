@@ -173,8 +173,8 @@ Além dos endpoints, falta o upload de fotos (`photoPath`). Os medicamentos info
 | POST   | `/auth/guardian/forgot-password` | Idem, para responsável                                                           | Mobile  | ✅ implementado — sempre `204`                   |
 | POST   | `/auth/reset-password`           | Define a nova senha a partir do token do e-mail (body: `token`, `password`)      | Ambos   | ✅ implementado                                  |
 | POST   | `/auth/guardian/register`        | Autocadastro do responsável + idoso (2 passos consolidados)                      | Mobile  | ✅ implementado — idoso fica sem clínica; já devolve a sessão, como o login; `409` se o e-mail existir |
-| POST   | `/auth/staff/accept-invite`      | Define a senha do colaborador recém-cadastrado (body: `token`, `password`)       | Web     | ✅ implementado — completa o `POST /staff`; `204`, sem login automático |
-| POST   | `/auth/guardian/accept-invite`   | Define a senha do responsável cadastrado via walk-in (body: `token`, `password`) | Ambos   | ✅ implementado — completa o `POST /guardians`; `204` |
+| POST   | `/auth/staff/accept-invite`      | Define a senha do colaborador recém-cadastrado (body: `token`, `password`)       | Web     | ✅ implementado — completa o `POST /staff`; `204`, sem login automático; `400` se a conta já tem senha |
+| POST   | `/auth/guardian/accept-invite`   | Define a senha do responsável cadastrado via walk-in (body: `token`, `password`) | Ambos   | ✅ implementado — completa o `POST /guardians`; `204`; `400` se a conta já tem senha |
 
 **Sessão:** o login devolve um access token JWT (`Authorization: Bearer`, 15 min por padrão, assinado com `JWT_SECRET`, payload `{ sub, role, staffRole?, clinicId? }`) e um refresh token JWT (30 dias, assinado com `JWT_REFRESH_SECRET`) ligado a uma linha de `auth_sessions`. Cada `POST /auth/refresh` gira o refresh token; reapresentar um refresh já usado derruba a sessão inteira (sinal de que o token vazou). `logout` e `reset-password` revogam sessões, mas um access token já emitido continua válido até expirar.
 
@@ -182,7 +182,9 @@ Além dos endpoints, falta o upload de fotos (`photoPath`). Os medicamentos info
 
 **Segurança:** senhas com argon2id (mínimo 8 caracteres); login, `forgot-password` e `reset-password` limitados a 5 tentativas por minuto por IP + e-mail; respostas de login e `forgot-password` não revelam se o e-mail existe. O link de redefinição (`PASSWORD_RESET_URL?token=...`) vale 1 hora, é de uso único e pedir outro invalida o anterior.
 
-> **De onde vem a senha de quem não se autocadastrou:** `POST /staff` e `POST /guardians` (cadastro pela equipe) criam o registro **sem senha** e enviam por e-mail um link de convite (`STAFF_INVITE_URL?token=...` ou `GUARDIAN_INVITE_URL?token=...`, válido por 72 horas) pra pessoa definir a própria senha em `/auth/*/accept-invite`. Até lá, a conta existe mas não consegue logar. Se o link expirar ou o e-mail não chegar, "Esqueci minha senha" funciona também pra conta sem senha e serve de reenvio.
+> **De onde vem a senha de quem não se autocadastrou:** `POST /staff` e `POST /guardians` (cadastro pela equipe) criam o registro **sem senha** e enviam por e-mail um link de convite (`STAFF_INVITE_URL?token=...` ou `GUARDIAN_INVITE_URL?token=...`, válido por 72 horas) pra pessoa definir a própria senha em `/auth/*/accept-invite`. Até lá, a conta existe mas não consegue logar. Se o link expirar ou o e-mail não chegar, "Esqueci minha senha" funciona também pra conta sem senha e serve de reenvio. Um convite nunca sobrescreve uma senha já definida.
+
+> **Troca de e-mail feita pela equipe** (`PATCH /staff/:id`, `PATCH /guardians/:id`): só vale pra conta **ainda não ativada** (sem senha) — é a correção de um e-mail digitado errado no cadastro. Os links já enviados ao endereço antigo deixam de valer e o convite vai pro endereço novo. Conta ativada responde `409`: trocar o e-mail de login de outra pessoa entregaria a conta a quem controla o endereço novo, via "Esqueci minha senha".
 
 ### Clinics
 
@@ -203,7 +205,7 @@ Toda rota de staff é restrita a colaboradores e à clínica de quem chama. Coor
 | GET    | `/staff/me`  | Perfil do colaborador logado                                               | Ambos   | ✅ implementado                                                                    |
 | GET    | `/staff/:id` | Detalhe                                                                    | Web     | ✅ implementado                                                                    |
 | PATCH  | `/staff/me`  | Editar o próprio perfil (nome, cpf)                                        | Mobile  | ✅ implementado — foto aguarda a definição de upload                               |
-| PATCH  | `/staff/:id` | Editar colaborador (nome, e-mail, cpf, `staffRole`)                        | Web     | ✅ implementado — `@Roles(COORDINATOR, NURSE)`                                     |
+| PATCH  | `/staff/:id` | Editar colaborador (nome, e-mail, cpf, `staffRole`)                        | Web     | ✅ implementado — `@Roles(COORDINATOR, NURSE)`; e-mail só de conta não ativada (`409`), e o convite é reenviado |
 | DELETE | `/staff/:id` | Desativar colaborador                                                      | Web     | ✅ implementado — soft delete (`deactivatedAt`), revoga as sessões; `204`          |
 
 ### Guardians
@@ -215,7 +217,7 @@ O responsável só vê o próprio cadastro. Um colaborador vê os responsáveis 
 | POST   | `/guardians`                       | Cadastro walk-in (responsável + idoso num quarto da clínica)      | Ambos   | ✅ implementado — qualquer colaborador; quarto precisa ter leito livre; envia o convite       |
 | GET    | `/guardians/:id`                   | Detalhe                                                           | Ambos   | ✅ implementado                                                                              |
 | PATCH  | `/guardians/me`                    | Editar o próprio perfil (nome, cpf)                               | Mobile  | ✅ implementado — foto aguarda a definição de upload                                         |
-| PATCH  | `/guardians/:id`                   | Editar responsável (nome, e-mail, cpf — uso administrativo)       | Web     | ✅ implementado — qualquer colaborador da clínica relacionada                                |
+| PATCH  | `/guardians/:id`                   | Editar responsável (nome, e-mail, cpf — uso administrativo)       | Web     | ✅ implementado — qualquer colaborador da clínica relacionada; e-mail só de conta não ativada (`409`), e o convite é reenviado |
 | POST   | `/guardians/:id/contact-clinic`    | Marcar clínica como contatada (`?clinicId=`)                      | Mobile  | ✅ implementado — só o próprio responsável; idempotente                                      |
 | GET    | `/guardians/pending-link-requests` | Fila de vínculo pendente (`?clinicId=`), paginada por responsável | Ambos   | ✅ implementado — `@Roles(COORDINATOR, NURSE)`; `PendingLinkRequest` não é persistida        |
 

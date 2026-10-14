@@ -159,6 +159,40 @@ describe('Staff (e2e)', () => {
         .expect(200);
     });
 
+    it('does not let an old invite overwrite a password set in the meantime', async () => {
+      const email = uniqueEmail();
+      await http()
+        .post(STAFF)
+        .set('Authorization', as(nurse, StaffRole.NURSE))
+        .send({ name: 'Larissa Prado', email, staffRole: StaffRole.CAREGIVER })
+        .expect(201);
+      const inviteToken = lastInviteToken();
+
+      await http()
+        .post(`${AUTH}/staff/forgot-password`)
+        .send({ email })
+        .expect(204);
+      const [resetMail] = testApp.mail.sendPasswordReset.mock.lastCall as [
+        { resetUrl: string },
+      ];
+      await http()
+        .post(`${AUTH}/reset-password`)
+        .send({
+          token: new URL(resetMail.resetUrl).searchParams.get('token'),
+          password: 'chosen-by-the-owner',
+        })
+        .expect(204);
+
+      await http()
+        .post(`${AUTH}/staff/accept-invite`)
+        .send({ token: inviteToken, password: 'from-the-old-invite' })
+        .expect(400);
+      await http()
+        .post(`${AUTH}/staff/login`)
+        .send({ email, password: 'chosen-by-the-owner' })
+        .expect(200);
+    });
+
     it('validates the payload and rejects duplicated e-mails', async () => {
       const response = await http()
         .post(STAFF)
@@ -264,6 +298,62 @@ describe('Staff (e2e)', () => {
         .expect(({ body }) => {
           expect(body.staffRole).toBe(StaffRole.NURSE);
         });
+    });
+
+    it('fixes the e-mail of someone not activated yet, and only the new address activates', async () => {
+      const created = await http()
+        .post(STAFF)
+        .set('Authorization', as(nurse, StaffRole.NURSE))
+        .send({
+          name: 'Larissa Prado',
+          email: uniqueEmail(),
+          staffRole: StaffRole.CAREGIVER,
+        })
+        .expect(201);
+      const typoToken = lastInviteToken();
+      const corrected = uniqueEmail();
+
+      await http()
+        .patch(`${STAFF}/${created.body.id}`)
+        .set('Authorization', as(nurse, StaffRole.NURSE))
+        .send({ email: corrected })
+        .expect(200);
+      const [mail] = testApp.mail.sendInvite.mock.lastCall as [InviteMail];
+      expect(mail.to).toBe(corrected);
+
+      await http()
+        .post(`${AUTH}/staff/accept-invite`)
+        .send({ token: typoToken, password: 'owned-by-the-typo' })
+        .expect(400);
+      await http()
+        .post(`${AUTH}/staff/accept-invite`)
+        .send({ token: lastInviteToken(), password: 'brand-new-password' })
+        .expect(204);
+      await http()
+        .post(`${AUTH}/staff/login`)
+        .send({ email: corrected, password: 'brand-new-password' })
+        .expect(200);
+    });
+
+    it('never changes the e-mail of an activated account, so nobody takes it over', async () => {
+      const inviteCount = testApp.mail.sendInvite.mock.calls.length;
+
+      await http()
+        .patch(`${STAFF}/${caregiver.id}`)
+        .set('Authorization', as(nurse, StaffRole.NURSE))
+        .send({ email: uniqueEmail() })
+        .expect(409);
+      await http()
+        .patch(`${STAFF}/${caregiver.id}`)
+        .set('Authorization', as(nurse, StaffRole.NURSE))
+        .send({ name: 'Bruno K.', email: caregiver.email })
+        .expect(200);
+
+      expect(testApp.mail.sendInvite.mock.calls.length).toBe(inviteCount);
+      await http()
+        .post(`${AUTH}/staff/login`)
+        .send({ email: caregiver.email, password: TEST_PASSWORD })
+        .expect(200);
     });
 
     it('keeps the clinic with at least one active coordinator', async () => {

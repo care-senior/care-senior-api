@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Not, Repository } from 'typeorm';
+import { DataSource, IsNull, Not, Repository } from 'typeorm';
 import { InvitationsService } from '../../auth/services/invitations.service.js';
 import { SessionsService } from '../../auth/services/sessions.service.js';
 import { paginate } from '../../../common/dto/paginated-response.dto.js';
@@ -27,6 +27,7 @@ export class StaffService {
     private readonly staffRepository: Repository<StaffMember>,
     private readonly invitations: InvitationsService,
     private readonly sessions: SessionsService,
+    private readonly dataSource: DataSource,
   ) {}
 
   async findAll(
@@ -88,8 +89,10 @@ export class StaffService {
     const clinicId = this.ownClinicId(currentUser);
     this.assertCanManage(currentUser, dto.staffRole);
 
-    const staffMember = await this.saveCheckingEmail(
-      this.staffRepository.create({ ...dto, clinicId }),
+    const staffMember = await this.saveCheckingEmail(() =>
+      this.staffRepository.save(
+        this.staffRepository.create({ ...dto, clinicId }),
+      ),
     );
     await this.invitations.inviteStaffMember(staffMember);
     return StaffResponseDto.fromEntity(staffMember);
@@ -111,9 +114,22 @@ export class StaffService {
       await this.assertAnotherActiveCoordinator(staffMember);
     }
 
-    const saved = await this.saveCheckingEmail(
-      this.staffRepository.merge(staffMember, dto),
+    // A typo in the e-mail of someone not activated yet can be fixed; the
+    // invite then goes to the new address only.
+    const changesEmail =
+      dto.email !== undefined && dto.email !== staffMember.email;
+    const saved = await this.saveCheckingEmail(() =>
+      this.dataSource.transaction(async (manager) => {
+        if (changesEmail) {
+          await this.invitations.prepareEmailChange(manager, {
+            id: staffMember.id,
+            role: UserRole.STAFF,
+          });
+        }
+        return manager.save(this.staffRepository.merge(staffMember, dto));
+      }),
     );
+    if (changesEmail) await this.invitations.inviteStaffMember(saved);
     return StaffResponseDto.fromEntity(saved);
   }
 
@@ -209,10 +225,10 @@ export class StaffService {
   }
 
   private async saveCheckingEmail(
-    staffMember: StaffMember,
+    save: () => Promise<StaffMember>,
   ): Promise<StaffMember> {
     try {
-      return await this.staffRepository.save(staffMember);
+      return await save();
     } catch (error) {
       if (isUniqueViolation(error)) {
         throw new ConflictException('E-mail already registered');

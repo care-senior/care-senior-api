@@ -1,6 +1,12 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import type { Repository, SelectQueryBuilder } from 'typeorm';
+import {
+  type EntityManager,
+  type EntityTarget,
+  IsNull,
+  type Repository,
+  type SelectQueryBuilder,
+} from 'typeorm';
 import { StaffRole, UserRole } from '../../../common/enums/index.js';
 import { isUniqueViolation } from '../../../common/utils/database-errors.js';
 import { Guardian } from '../../guardians/entities/guardian.entity.js';
@@ -83,8 +89,56 @@ export class AccountsService {
     }
   }
 
-  async updatePassword(role: UserRole, id: string, passwordHash: string) {
-    await this.repositoryFor(role).update(id, { password: passwordHash });
+  async updatePassword(
+    role: UserRole,
+    id: string,
+    passwordHash: string,
+    manager: EntityManager = this.staffMembers.manager,
+  ) {
+    await manager.update(this.entityFor(role), id, { password: passwordHash });
+  }
+
+  /**
+   * Sets the password of an account that has none yet (an invite being
+   * accepted). False when the account already has a password or, for staff,
+   * was deactivated: an old invite never overwrites a password.
+   */
+  async setFirstPassword(
+    role: UserRole,
+    id: string,
+    passwordHash: string,
+    manager: EntityManager = this.staffMembers.manager,
+  ): Promise<boolean> {
+    const result =
+      role === UserRole.STAFF
+        ? await manager.update(
+            StaffMember,
+            { id, password: IsNull(), deactivatedAt: IsNull() },
+            { password: passwordHash },
+          )
+        : await manager.update(
+            Guardian,
+            { id, password: IsNull() },
+            { password: passwordHash },
+          );
+    return Boolean(result.affected);
+  }
+
+  /** Locks the account row until the transaction ends. */
+  async hasPassword(
+    manager: EntityManager,
+    role: UserRole,
+    id: string,
+  ): Promise<boolean> {
+    const entity = await manager
+      .getRepository(this.entityFor(role))
+      .createQueryBuilder('account')
+      .setLock('pessimistic_write')
+      .select('account.id')
+      .addSelect('account.password')
+      .where('account.id = :id', { id })
+      .getOne();
+    return Boolean(entity?.password);
   }
 
   private accountQuery(role: UserRole): SelectQueryBuilder<AccountEntity> {
@@ -107,8 +161,8 @@ export class AccountsService {
       );
   }
 
-  private repositoryFor(role: UserRole) {
-    return role === UserRole.STAFF ? this.staffMembers : this.guardians;
+  private entityFor(role: UserRole): EntityTarget<AccountEntity> {
+    return role === UserRole.STAFF ? StaffMember : Guardian;
   }
 
   private toAccount(role: UserRole, entity: AccountEntity): Account {
