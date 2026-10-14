@@ -46,6 +46,13 @@ describe('Guardians (e2e)', () => {
     },
   });
 
+  function lastInviteToken(): string {
+    const [mail] = testApp.mail.sendInvite.mock.lastCall as [
+      { inviteUrl: string },
+    ];
+    return new URL(mail.inviteUrl).searchParams.get('token')!;
+  }
+
   beforeEach(async () => {
     testApp = await createTestApp();
     clinicId = await testApp.createClinic();
@@ -209,14 +216,77 @@ describe('Guardians (e2e)', () => {
     it('lets the staff edit a guardian of their clinic', async () => {
       const guardian = await testApp.createGuardian();
       await testApp.createResident({ clinicId, guardianIds: [guardian.id] });
-      const email = uniqueEmail('edited');
 
       const response = await http()
         .patch(`${GUARDIANS}/${guardian.id}`)
         .set('Authorization', asStaff(caregiver, StaffRole.CAREGIVER))
-        .send({ name: 'Fernanda C.', email: email.toUpperCase() })
+        .send({ name: 'Fernanda C.', cpf: '123.456.789-09' })
         .expect(200);
-      expect(response.body).toMatchObject({ name: 'Fernanda C.', email });
+      expect(response.body).toMatchObject({
+        name: 'Fernanda C.',
+        maskedCpf: '•••.•••.•••-09',
+      });
+    });
+
+    it('fixes the e-mail of a walk-in guardian not activated yet, and only the new address activates', async () => {
+      const created = await http()
+        .post(GUARDIANS)
+        .set('Authorization', asStaff(caregiver, StaffRole.CAREGIVER))
+        .send(walkIn())
+        .expect(201);
+      const typoToken = lastInviteToken();
+      const corrected = uniqueEmail('corrected');
+
+      const response = await http()
+        .patch(`${GUARDIANS}/${created.body.guardian.id}`)
+        .set('Authorization', asStaff(caregiver, StaffRole.CAREGIVER))
+        .send({ email: corrected.toUpperCase() })
+        .expect(200);
+      expect(response.body.email).toBe(corrected);
+      const [mail] = testApp.mail.sendInvite.mock.lastCall as [{ to: string }];
+      expect(mail.to).toBe(corrected);
+
+      await http()
+        .post(`${AUTH}/guardian/accept-invite`)
+        .send({ token: typoToken, password: 'owned-by-the-typo' })
+        .expect(400);
+      await http()
+        .post(`${AUTH}/guardian/accept-invite`)
+        .send({ token: lastInviteToken(), password: 'brand-new-password' })
+        .expect(204);
+      await http()
+        .post(`${AUTH}/guardian/login`)
+        .send({ email: corrected, password: 'brand-new-password' })
+        .expect(200);
+    });
+
+    it('never changes the e-mail of an activated guardian, even from a contacted clinic', async () => {
+      const guardian = await testApp.createGuardian({
+        password: TEST_PASSWORD,
+        contactedClinicIds: [clinicId],
+      });
+      await testApp.createResident({
+        clinicId: await testApp.createClinic(),
+        guardianIds: [guardian.id],
+      });
+      testApp.mail.sendPasswordReset.mockClear();
+      const attackerEmail = uniqueEmail('attacker');
+
+      await http()
+        .patch(`${GUARDIANS}/${guardian.id}`)
+        .set('Authorization', asStaff(caregiver, StaffRole.CAREGIVER))
+        .send({ email: attackerEmail })
+        .expect(409);
+
+      await http()
+        .post(`${AUTH}/guardian/forgot-password`)
+        .send({ email: attackerEmail })
+        .expect(204);
+      expect(testApp.mail.sendPasswordReset).not.toHaveBeenCalled();
+      await http()
+        .post(`${AUTH}/guardian/login`)
+        .send({ email: guardian.email, password: TEST_PASSWORD })
+        .expect(200);
     });
 
     it('lets a guardian edit their own profile but not their e-mail', async () => {

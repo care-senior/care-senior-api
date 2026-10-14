@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, type Repository } from 'typeorm';
+import { type EntityManager, IsNull, type Repository } from 'typeorm';
 import type {
   AuthTokenPurpose,
   UserRole,
@@ -58,8 +58,10 @@ export class OneTimeTokensService {
     token: string,
     purpose: AuthTokenPurpose,
     userRole?: UserRole,
+    manager: EntityManager = this.tokens.manager,
   ): Promise<TokenOwner> {
-    const query = this.tokens
+    const query = manager
+      .getRepository(AuthToken)
       .createQueryBuilder()
       .update()
       .set({ usedAt: () => 'now()' })
@@ -74,5 +76,17 @@ export class OneTimeTokensService {
     const [owner] = result.raw as { user_id: string; user_role: UserRole }[];
     if (!owner) throw new BadRequestException('Invalid or expired token');
     return { userId: owner.user_id, userRole: owner.user_role };
+  }
+
+  /** Every link still unused of the account stops working, whatever it was for. */
+  async revokeAll(
+    { id, role }: Pick<Account, 'id' | 'role'>,
+    manager: EntityManager = this.tokens.manager,
+  ) {
+    await manager.update(
+      AuthToken,
+      { userId: id, userRole: role, usedAt: IsNull() },
+      { usedAt: new Date() },
+    );
   }
 }

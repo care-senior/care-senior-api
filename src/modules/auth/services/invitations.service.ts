@@ -1,9 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { ConflictException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type { EntityManager } from 'typeorm';
 import { AuthTokenPurpose, UserRole } from '../../../common/enums/index.js';
 import type { Environment } from '../../../config/environment.js';
 import { MailService } from '../../../infra/mail/services/mail.service.js';
-import type { Account } from './accounts.service.js';
+import { AccountsService, type Account } from './accounts.service.js';
 import { OneTimeTokensService } from './one-time-tokens.service.js';
 
 const INVITE_TTL_MS = 72 * 60 * 60 * 1000;
@@ -16,6 +17,7 @@ export class InvitationsService {
   private readonly inviteUrls: Record<UserRole, string>;
 
   constructor(
+    private readonly accounts: AccountsService,
     private readonly oneTimeTokens: OneTimeTokensService,
     private readonly mail: MailService,
     config: ConfigService<Environment, true>,
@@ -32,6 +34,28 @@ export class InvitationsService {
 
   inviteGuardian(guardian: InvitedAccount) {
     return this.invite({ ...guardian, role: UserRole.GUARDIAN });
+  }
+
+  /**
+   * Runs in the transaction that saves a new e-mail typed by someone else
+   * (staff editing a guardian or a colleague); invite the new address after
+   * the commit. Only an account nobody activated yet takes it: once its owner
+   * set a password the e-mail is theirs, and changing it would hand the
+   * account to whoever holds the new address through "forgot password".
+   */
+  async prepareEmailChange(
+    manager: EntityManager,
+    account: Pick<Account, 'id' | 'role'>,
+  ) {
+    // Links sent to the old address stop working. Revoking them first makes
+    // a link being used right now finish before, and the account then
+    // already has a password.
+    await this.oneTimeTokens.revokeAll(account, manager);
+    if (await this.accounts.hasPassword(manager, account.role, account.id)) {
+      throw new ConflictException(
+        'Only the e-mail of an account not activated yet can be changed',
+      );
+    }
   }
 
   private async invite(account: InvitedAccount & { role: UserRole }) {

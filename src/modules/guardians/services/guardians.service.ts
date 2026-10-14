@@ -82,17 +82,29 @@ export class GuardiansService {
     this.ownClinicId(currentUser);
     const guardian = await this.findOrThrow(id);
     await this.assertCanAccess(guardian, currentUser);
+    // Only fixes a typo before the guardian activates the account; the
+    // invite then goes to the new address only.
+    const changesEmail =
+      dto.email !== undefined && dto.email !== guardian.email;
+    let saved: Guardian;
     try {
-      const saved = await this.guardianRepository.save(
-        this.guardianRepository.merge(guardian, dto),
-      );
-      return GuardianResponseDto.fromEntity(saved, currentUser);
+      saved = await this.dataSource.transaction(async (manager) => {
+        if (changesEmail) {
+          await this.invitations.prepareEmailChange(manager, {
+            id: guardian.id,
+            role: UserRole.GUARDIAN,
+          });
+        }
+        return manager.save(this.guardianRepository.merge(guardian, dto));
+      });
     } catch (error) {
       if (isUniqueViolation(error)) {
         throw new ConflictException('E-mail already registered');
       }
       throw error;
     }
+    if (changesEmail) await this.invitations.inviteGuardian(saved);
+    return GuardianResponseDto.fromEntity(saved, currentUser);
   }
 
   async contactClinic(
