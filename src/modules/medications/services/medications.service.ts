@@ -139,7 +139,6 @@ export class MedicationsService {
     const { endDate: newEndDate } = medication;
     return MedicationResponseDto.fromEntity(
       await this.dataSource.transaction(async (manager) => {
-        // An end date brought forward drops the doses after it.
         if (endDate && newEndDate) {
           await cancelDosesAfter(
             manager,
@@ -154,8 +153,7 @@ export class MedicationsService {
   }
 
   // Ending a treatment keeps the prescription as history instead of deleting
-  // it; an end date already in the past is kept, any other becomes now. Its
-  // doses still ahead are cancelled.
+  // it; an end date already in the past is kept, any other becomes now.
   async deactivate(
     id: string,
     currentUser: AuthenticatedUser,
@@ -216,8 +214,6 @@ export class MedicationsService {
   }
 }
 
-// Who registered the cancelled doses; null when a guardian ends the treatment
-// of a resident without clinic.
 function staffIdOf(currentUser: AuthenticatedUser): string | null {
   return currentUser.role === UserRole.STAFF ? currentUser.id : null;
 }

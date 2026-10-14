@@ -114,8 +114,6 @@ export class StaffService {
       await this.assertAnotherActiveCoordinator(staffMember);
     }
 
-    // A typo in the e-mail of someone not activated yet can be fixed; the
-    // invite then goes to the new address only.
     const changesEmail =
       dto.email !== undefined && dto.email !== staffMember.email;
     const saved = await this.saveCheckingEmail(() =>
