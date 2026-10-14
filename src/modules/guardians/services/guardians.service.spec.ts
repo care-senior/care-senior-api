@@ -217,7 +217,6 @@ describe('GuardiansService', () => {
   });
 
   describe('update', () => {
-    // Contacted the nurse's clinic, so the nurse may edit the guardian.
     const contacted = () => guardian({ contactedClinicIds: ['clinic-1'] });
 
     it('sends the invite to a corrected e-mail of a guardian not activated yet', async () => {

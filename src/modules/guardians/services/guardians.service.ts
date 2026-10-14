@@ -82,8 +82,6 @@ export class GuardiansService {
     this.ownClinicId(currentUser);
     const guardian = await this.findOrThrow(id);
     await this.assertCanAccess(guardian, currentUser);
-    // Only fixes a typo before the guardian activates the account; the
-    // invite then goes to the new address only.
     const changesEmail =
       dto.email !== undefined && dto.email !== guardian.email;
     let saved: Guardian;

@@ -262,7 +262,6 @@ describe('Medications (e2e)', () => {
       .set('Authorization', asCaregiver())
       .send(dose)
       .expect(409);
-    // The old dose keeps the ended prescription; the one ahead was cancelled.
     await http()
       .patch(`${ACTIVITIES}/${pastDose.body.id}`)
       .set('Authorization', asCaregiver())

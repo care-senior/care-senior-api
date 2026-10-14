@@ -98,11 +98,6 @@ export class AccountsService {
     await manager.update(this.entityFor(role), id, { password: passwordHash });
   }
 
-  /**
-   * Sets the password of an account that has none yet (an invite being
-   * accepted). False when the account already has a password or, for staff,
-   * was deactivated: an old invite never overwrites a password.
-   */
   async setFirstPassword(
     role: UserRole,
     id: string,
@@ -124,8 +119,7 @@ export class AccountsService {
     return Boolean(result.affected);
   }
 
-  /** Locks the account row until the transaction ends. */
-  async hasPassword(
+  async lockAndCheckHasPassword(
     manager: EntityManager,
     role: UserRole,
     id: string,

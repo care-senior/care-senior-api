@@ -78,7 +78,6 @@ export class OneTimeTokensService {
     return { userId: owner.user_id, userRole: owner.user_role };
   }
 
-  /** Every link still unused of the account stops working, whatever it was for. */
   async revokeAll(
     { id, role }: Pick<Account, 'id' | 'role'>,
     manager: EntityManager = this.tokens.manager,

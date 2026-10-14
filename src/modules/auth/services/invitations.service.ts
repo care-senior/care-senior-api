@@ -36,22 +36,18 @@ export class InvitationsService {
     return this.invite({ ...guardian, role: UserRole.GUARDIAN });
   }
 
-  /**
-   * Runs in the transaction that saves a new e-mail typed by someone else
-   * (staff editing a guardian or a colleague); invite the new address after
-   * the commit. Only an account nobody activated yet takes it: once its owner
-   * set a password the e-mail is theirs, and changing it would hand the
-   * account to whoever holds the new address through "forgot password".
-   */
   async prepareEmailChange(
     manager: EntityManager,
     account: Pick<Account, 'id' | 'role'>,
   ) {
-    // Links sent to the old address stop working. Revoking them first makes
-    // a link being used right now finish before, and the account then
-    // already has a password.
+    // Revoke before locking: a link in use right now commits first.
     await this.oneTimeTokens.revokeAll(account, manager);
-    if (await this.accounts.hasPassword(manager, account.role, account.id)) {
+    const isActivated = await this.accounts.lockAndCheckHasPassword(
+      manager,
+      account.role,
+      account.id,
+    );
+    if (isActivated) {
       throw new ConflictException(
         'Only the e-mail of an account not activated yet can be changed',
       );

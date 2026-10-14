@@ -139,8 +139,6 @@ export class AuthService {
       });
   }
 
-  // The token is consumed in the same transaction that stores the password,
-  // so an e-mail change revoking the links waits for a link being used now.
   async resetPassword({ token, password }: ResetPasswordDto) {
     const passwordHash = await this.passwords.hash(password);
     const owner = await this.dataSource.transaction(async (manager) => {
