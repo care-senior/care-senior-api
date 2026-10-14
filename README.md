@@ -253,7 +253,7 @@ Só colaboradores, e só os quartos da própria clínica. Cada quarto vem com os
 
 Uma atividade é da clínica e compartilhada por um ou mais idosos (`participants`), cada um com o próprio status. Qualquer colaborador da clínica agenda, edita e registra o andamento. O responsável vê só as atividades dos próprios idosos e, dentro delas, só os participantes que são idosos dele — nunca a nota, o comentário ou o motivo de pulo do idoso de outra família, nem quem da equipe registrou (`registeredBy`). Toda mudança numa atividade trava a linha dela, então uma edição nunca entra depois de um participante ter começado.
 
-Status de participante: `pending` → `inProgress` (opcional, via `start-all`) → `completed` ou `skipped`, uma vez só (`409` se já tiver desfecho). `late` não é gravado: a resposta mostra `late` pra um participante ainda `pending` cujo horário já passou. `cancelled` é da atividade inteira: `cancel` encerra todo participante ainda `pending` ou `inProgress`, com o motivo visível ao responsável, e mantém o desfecho de quem já concluiu ou pulou. Uma atividade gerada por rotina que foi cancelada fica como histórico — a rotina não a apaga nem gera o horário de novo.
+Status de participante: `pending` → `inProgress` (opcional, via `start-all`) → `completed` ou `skipped`, uma vez só (`409` se já tiver desfecho). `late` não é gravado: a resposta mostra `late` pra um participante ainda `pending` cujo horário já passou. `cancelled` é da atividade inteira: `cancel` encerra todo participante ainda `pending` ou `inProgress`, com o motivo visível ao responsável, e mantém o desfecho de quem já concluiu ou pulou. Encerrar uma medicação cancela do mesmo jeito as doses futuras dela. Uma atividade gerada por rotina que foi cancelada fica como histórico — a rotina não a apaga nem gera o horário de novo.
 
 | Método | Endpoint                                            | Descrição                                                     | Cliente | Observação          |
 | ------ | --------------------------------------------------- | ------------------------------------------------------------- | ------- | ------------------- |
@@ -287,7 +287,7 @@ Regra recorrente da clínica (título, tipo, horário `HH:mm` de Brasília, dias
 
 ### Medications
 
-Uma prescrição é de um idoso. A permissão é a mesma do perfil do idoso: enquanto ele não tem clínica, quem cadastra e edita é o responsável (inclusive os medicamentos do autocadastro); depois do vínculo, qualquer colaborador da clínica. Quem vê o idoso vê as prescrições dele — inclusive a equipe de uma clínica contatada, na revisão da solicitação de vínculo. Encerrar o tratamento (`deactivate`) guarda a prescrição como histórico e fecha `endDate` em agora (se ainda estava aberto ou no futuro); prescrição encerrada não é mais editada (`409`). Uma dose agendada é uma `Activity` do tipo `medication` com `medicationId`.
+Uma prescrição é de um idoso. A permissão é a mesma do perfil do idoso: enquanto ele não tem clínica, quem cadastra e edita é o responsável (inclusive os medicamentos do autocadastro); depois do vínculo, qualquer colaborador da clínica. Quem vê o idoso vê as prescrições dele — inclusive a equipe de uma clínica contatada, na revisão da solicitação de vínculo. Encerrar o tratamento (`deactivate`) guarda a prescrição como histórico e fecha `endDate` em agora (se ainda estava aberto ou no futuro); prescrição encerrada não é mais editada (`409`). Uma dose agendada é uma `Activity` do tipo `medication` com `medicationId`. Ao encerrar, as doses ainda por vir saem da agenda: o participante ainda em aberto fica `cancelled` com o motivo "Tratamento encerrado" (visível ao responsável), então ninguém é lembrado de um remédio suspenso; o mesmo vale pras doses depois de um `endDate` antecipado. Dose passada ou já registrada fica como está.
 
 | Método | Endpoint                      | Descrição                                               | Cliente | Observação                                  |
 | ------ | ----------------------------- | ------------------------------------------------------- | ------- | ------------------------------------------- |
@@ -295,7 +295,7 @@ Uma prescrição é de um idoso. A permissão é a mesma do perfil do idoso: enq
 | POST   | `/medications`                | Cadastrar prescrição                                    | Ambos   | ✅ implementado — `startDate` padrão agora; sem `endDate` é tratamento contínuo |
 | GET    | `/medications/:id`            | Detalhe                                                 | Ambos   | ✅ implementado                             |
 | PATCH  | `/medications/:id`            | Editar prescrição                                       | Ambos   | ✅ implementado — `endDate: null` volta a ser contínuo |
-| PATCH  | `/medications/:id/deactivate` | Encerrar tratamento                                     | Ambos   | ✅ implementado — preferir isso a `DELETE`, mantém histórico |
+| PATCH  | `/medications/:id/deactivate` | Encerrar tratamento                                     | Ambos   | ✅ implementado — preferir isso a `DELETE`, mantém histórico; cancela as doses futuras |
 
 ### Health records
 

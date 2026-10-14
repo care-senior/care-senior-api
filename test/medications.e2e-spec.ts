@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { JwtService } from '@nestjs/jwt';
 import request from 'supertest';
 import { StaffRole, UserRole } from '../src/common/enums/index.js';
+import { RemindersService } from '../src/modules/notifications/services/reminders.service.js';
 import { createTestApp, type TestApp } from './support/test-app.js';
 
 const MEDICATIONS = '/api/v1/medications';
@@ -246,6 +247,12 @@ describe('Medications (e2e)', () => {
         .expect(400);
     }
 
+    const pastDose = await http()
+      .post(ACTIVITIES)
+      .set('Authorization', asCaregiver())
+      .send({ ...dose, scheduledTime: '2026-01-10T07:30:00-03:00' })
+      .expect(201);
+
     await http()
       .patch(`${MEDICATIONS}/${medication.id}/deactivate`)
       .set('Authorization', asCaregiver())
@@ -255,10 +262,118 @@ describe('Medications (e2e)', () => {
       .set('Authorization', asCaregiver())
       .send(dose)
       .expect(409);
+    // The old dose keeps the ended prescription; the one ahead was cancelled.
+    await http()
+      .patch(`${ACTIVITIES}/${pastDose.body.id}`)
+      .set('Authorization', asCaregiver())
+      .send({ title: 'Losartana 50mg (manhã)' })
+      .expect(200);
     await http()
       .patch(`${ACTIVITIES}/${created.body.id}`)
       .set('Authorization', asCaregiver())
       .send({ title: 'Losartana 50mg (manhã)' })
-      .expect(200);
+      .expect(409);
+  });
+
+  describe('doses of a treatment that ends', () => {
+    async function scheduleDose(
+      medicationId: string,
+      scheduledTime: string,
+    ): Promise<string> {
+      const response = await http()
+        .post(ACTIVITIES)
+        .set('Authorization', asCaregiver())
+        .send({
+          type: 'medication',
+          title: 'Losartana 50mg',
+          scheduledTime,
+          residentIds: [mariaId],
+          medicationId,
+        })
+        .expect(201);
+      return response.body.id as string;
+    }
+
+    async function doseOf(activityId: string) {
+      const response = await http()
+        .get(`${ACTIVITIES}/${activityId}`)
+        .set('Authorization', asGuardian(mariaFamily))
+        .expect(200);
+      return response.body.participants[0] as {
+        status: string;
+        notes: string | null;
+      };
+    }
+
+    it('cancels the doses still ahead, so nobody is reminded of them, and keeps the past ones', async () => {
+      const medication = await prescribe(mariaId);
+      const inTwentyMinutes = new Date(Date.now() + 20 * 60 * 1000);
+      const soon = await scheduleDose(
+        medication.id,
+        inTwentyMinutes.toISOString(),
+      );
+      const later = await scheduleDose(
+        medication.id,
+        '2030-03-10T07:30:00-03:00',
+      );
+      const alreadyGiven = await scheduleDose(
+        medication.id,
+        '2030-03-11T07:30:00-03:00',
+      );
+      await http()
+        .post(`${ACTIVITIES}/${alreadyGiven}/participants/${mariaId}/complete`)
+        .set('Authorization', asCaregiver())
+        .send({})
+        .expect(200);
+      const past = await scheduleDose(
+        medication.id,
+        '2026-01-10T07:30:00-03:00',
+      );
+
+      await http()
+        .patch(`${MEDICATIONS}/${medication.id}/deactivate`)
+        .set('Authorization', asCaregiver())
+        .expect(200);
+
+      for (const dose of [soon, later]) {
+        expect(await doseOf(dose)).toMatchObject({
+          status: 'cancelled',
+          notes: 'Tratamento encerrado',
+        });
+      }
+      expect((await doseOf(alreadyGiven)).status).toBe('completed');
+      expect((await doseOf(past)).status).toBe('late');
+
+      await testApp.app.get(RemindersService).sendDueReminders();
+      const inbox = await http()
+        .get('/api/v1/notifications')
+        .set('Authorization', asCaregiver())
+        .expect(200);
+      expect(inbox.body.meta.total).toBe(0);
+    });
+
+    it('cancels the doses after an end date brought forward', async () => {
+      const medication = await prescribe(mariaId);
+      const beforeEnd = await scheduleDose(
+        medication.id,
+        '2029-12-20T07:30:00-03:00',
+      );
+      const afterEnd = await scheduleDose(
+        medication.id,
+        '2030-03-10T07:30:00-03:00',
+      );
+
+      await http()
+        .patch(`${MEDICATIONS}/${medication.id}`)
+        .set('Authorization', asCaregiver())
+        .send({ endDate: '2030-01-01T00:00:00-03:00' })
+        .expect(200);
+
+      expect((await doseOf(beforeEnd)).status).toBe('pending');
+      expect(await doseOf(afterEnd)).toMatchObject({
+        status: 'cancelled',
+        notes: 'Tratamento encerrado',
+      });
+    });
   });
 });

@@ -6,7 +6,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
+import { cancelDosesAfter } from '../../activities/utils/medication-doses.js';
 import { paginate } from '../../../common/dto/paginated-response.dto.js';
 import { UserRole } from '../../../common/enums/index.js';
 import type { AuthenticatedUser } from '../../../common/types/authenticated-user.interface.js';
@@ -29,6 +30,7 @@ export class MedicationsService {
     @InjectRepository(Resident)
     private readonly residentRepository: Repository<Resident>,
     private readonly residentAccess: ResidentAccessService,
+    private readonly dataSource: DataSource,
   ) {}
 
   async findAll(
@@ -134,13 +136,26 @@ export class MedicationsService {
       medication.endDate = endDate ? new Date(endDate) : null;
     }
     assertValidPeriod(medication);
+    const { endDate: newEndDate } = medication;
     return MedicationResponseDto.fromEntity(
-      await this.medicationRepository.save(medication),
+      await this.dataSource.transaction(async (manager) => {
+        // An end date brought forward drops the doses after it.
+        if (endDate && newEndDate) {
+          await cancelDosesAfter(
+            manager,
+            id,
+            latest(newEndDate, new Date()),
+            staffIdOf(currentUser),
+          );
+        }
+        return manager.save(medication);
+      }),
     );
   }
 
   // Ending a treatment keeps the prescription as history instead of deleting
-  // it; an end date already in the past is kept, any other becomes now.
+  // it; an end date already in the past is kept, any other becomes now. Its
+  // doses still ahead are cancelled.
   async deactivate(
     id: string,
     currentUser: AuthenticatedUser,
@@ -152,7 +167,10 @@ export class MedicationsService {
       medication.endDate = now;
     }
     return MedicationResponseDto.fromEntity(
-      await this.medicationRepository.save(medication),
+      await this.dataSource.transaction(async (manager) => {
+        await cancelDosesAfter(manager, id, now, staffIdOf(currentUser));
+        return manager.save(medication);
+      }),
     );
   }
 
@@ -196,6 +214,16 @@ export class MedicationsService {
     }
     return currentUser.clinicId;
   }
+}
+
+// Who registered the cancelled doses; null when a guardian ends the treatment
+// of a resident without clinic.
+function staffIdOf(currentUser: AuthenticatedUser): string | null {
+  return currentUser.role === UserRole.STAFF ? currentUser.id : null;
+}
+
+function latest(first: Date, second: Date): Date {
+  return first > second ? first : second;
 }
 
 function assertValidPeriod({ startDate, endDate }: Medication) {

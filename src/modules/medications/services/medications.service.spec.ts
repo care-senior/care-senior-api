@@ -5,7 +5,10 @@ import {
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { DataSource, In } from 'typeorm';
+import { ActivityParticipant } from '../../activities/entities/activity-participant.entity.js';
 import {
+  ActivityStatus,
   MedicationForm,
   StaffRole,
   UserRole,
@@ -49,6 +52,24 @@ describe('MedicationsService', () => {
     assertCanEditProfile: vi.fn(),
   };
 
+  const dosesQuery = {
+    setLock: vi.fn(() => dosesQuery),
+    select: vi.fn(() => dosesQuery),
+    where: vi.fn(() => dosesQuery),
+    andWhere: vi.fn(() => dosesQuery),
+    getMany: vi.fn((): Promise<{ id: string }[]> => Promise.resolve([])),
+  };
+  const manager = {
+    getRepository: vi.fn(() => ({ createQueryBuilder: () => dosesQuery })),
+    update: vi.fn(),
+    save: medicationRepository.save,
+  };
+  const dataSource = {
+    transaction: vi.fn((work: (m: typeof manager) => Promise<unknown>) =>
+      work(manager),
+    ),
+  };
+
   const nurse: AuthenticatedUser = {
     id: 'staff-1',
     role: UserRole.STAFF,
@@ -82,6 +103,7 @@ describe('MedicationsService', () => {
         },
         { provide: getRepositoryToken(Resident), useValue: residentRepository },
         { provide: ResidentAccessService, useValue: residentAccess },
+        { provide: DataSource, useValue: dataSource },
       ],
     }).compile();
     service = module.get(MedicationsService);
@@ -149,6 +171,28 @@ describe('MedicationsService', () => {
       expect(response.endDate).toBeNull();
     });
 
+    it('cancels the doses after an end date brought forward', async () => {
+      medicationRepository.findOne.mockResolvedValue(medication());
+      dosesQuery.getMany.mockResolvedValueOnce([{ id: 'dose-1' }]);
+      const endDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
+
+      await service.update('med-1', { endDate: endDate.toISOString() }, nurse);
+
+      expect(dosesQuery.andWhere).toHaveBeenCalledWith(
+        'activity.scheduledTime > :after',
+        { after: endDate },
+      );
+      expect(manager.update).toHaveBeenCalledWith(
+        ActivityParticipant,
+        expect.objectContaining({ activityId: In(['dose-1']) }),
+        expect.objectContaining({
+          status: ActivityStatus.CANCELLED,
+          notes: 'Tratamento encerrado',
+          registeredByStaffId: 'staff-1',
+        }),
+      );
+    });
+
     it('refuses a deactivated medication', async () => {
       medicationRepository.findOne.mockResolvedValue(
         medication({ active: false }),
@@ -173,6 +217,30 @@ describe('MedicationsService', () => {
       );
       const ended = await service.deactivate('med-1', nurse);
       expect(ended.endDate).toEqual(pastEnd);
+    });
+
+    it('cancels the doses still ahead and keeps the past ones', async () => {
+      medicationRepository.findOne.mockResolvedValue(medication());
+      dosesQuery.getMany.mockResolvedValueOnce([{ id: 'dose-1' }]);
+
+      const ended = await service.deactivate('med-1', nurse);
+
+      expect(dosesQuery.andWhere).toHaveBeenCalledWith(
+        'activity.scheduledTime > :after',
+        { after: ended.endDate },
+      );
+      expect(manager.update).toHaveBeenCalledWith(
+        ActivityParticipant,
+        {
+          activityId: In(['dose-1']),
+          status: In([
+            ActivityStatus.PENDING,
+            ActivityStatus.IN_PROGRESS,
+            ActivityStatus.LATE,
+          ]),
+        },
+        expect.objectContaining({ status: ActivityStatus.CANCELLED }),
+      );
     });
   });
 });
